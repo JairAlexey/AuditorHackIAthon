@@ -138,15 +138,14 @@ def registrar_dictamen_notion(
     if dictamen not in _VALID_DICTAMENES:
         dictamen = "Alerta - Sobreprecio"
     try:
+        detalle = f"Taller: {taller}\nFecha: {datetime.now().strftime('%Y-%m-%d')}\n\n{observaciones}"
         page = _notion().pages.create(
             parent={"database_id": os.environ["NOTION_DATABASE_ID"]},
             properties={
-                "Número de Factura": {"title": [{"text": {"content": numero_factura[:100]}}]},
-                "Taller":            {"rich_text": [{"text": {"content": taller[:200]}}]},
-                "Total Facturado":   {"number": total_facturado},
-                "Dictamen":          {"select": {"name": dictamen}},
-                "Observaciones":     {"rich_text": [{"text": {"content": observaciones[:2000]}}]},
-                "Fecha Auditoría":   {"date": {"start": datetime.now().strftime("%Y-%m-%d")}},
+                "ID Siniestro":  {"title": [{"text": {"content": numero_factura[:100]}}]},
+                "Total Auditado": {"number": total_facturado},
+                "Estado":        {"select": {"name": dictamen}},
+                "Detalle":       {"rich_text": [{"text": {"content": detalle[:2000]}}]},
             },
         )
         return json.dumps({
@@ -155,6 +154,7 @@ def registrar_dictamen_notion(
             "mensaje": "Dictamen registrado en Notion.",
         })
     except Exception as exc:
+        print(f"[NOTION ERROR] {exc}")
         return json.dumps({"success": False, "error": str(exc)})
 
 

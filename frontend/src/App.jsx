@@ -98,7 +98,7 @@ function InvoiceCard({ invoiceData }) {
   return (
     <div className="neo-card p-6">
       <h2 className="text-xl font-black uppercase border-b-4 border-black pb-2 mb-4">
-        📄 Factura Procesada
+        Factura Procesada
       </h2>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
         {[
@@ -131,7 +131,7 @@ function AuditResultPanel({ result }) {
       {/* Dictamen */}
       <div className={`neo-card p-6 ${DICTAMEN_STYLES[audit_result?.dictamen]?.bg ?? 'bg-gray-100'}`}>
         <h2 className="text-xl font-black uppercase border-b-4 border-black pb-2 mb-4">
-          🏛 Dictamen Final
+          Dictamen Final
         </h2>
         <div className="flex flex-wrap items-center gap-3 mb-3">
           <DictamenBadge dictamen={audit_result?.dictamen ?? 'Error'} />
@@ -166,7 +166,7 @@ function AuditResultPanel({ result }) {
       {Array.isArray(audit_result?.items_auditados) && audit_result.items_auditados.length > 0 && (
         <div className="neo-card p-6">
           <h2 className="text-xl font-black uppercase border-b-4 border-black pb-2 mb-4">
-            🔍 Ítems Auditados ({audit_result.items_auditados.length})
+            Ítems Auditados ({audit_result.items_auditados.length})
           </h2>
           <div className="space-y-2">
             {audit_result.items_auditados.map((item, i) => (
