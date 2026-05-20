@@ -1,0 +1,36 @@
+services:
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file: .env              # carga todas las variables del .env raíz
+    volumes:
+      - ./backend:/app          # hot-reload: cambios en código se reflejan sin rebuild
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      # Le dice a Vite dónde está el backend DENTRO de la red de Docker
+      BACKEND_URL: http://backend:8000
+    volumes:
+      - ./frontend/src:/app/src          # hot-reload solo para src (evita re-instalar deps)
+      - ./frontend/index.html:/app/index.html
+    depends_on:
+      backend:
+        condition: service_healthy       # espera a que el backend responda antes de arrancar
+    restart: unless-stopped

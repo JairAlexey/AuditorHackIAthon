@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .neo-card {
+    @apply border-4 border-black shadow-neo-lg bg-white;
+  }
+  .neo-card-sm {
+    @apply border-2 border-black shadow-neo bg-white;
+  }
+  .neo-btn {
+    @apply border-4 border-black font-black uppercase tracking-wider shadow-neo
+           transition-all duration-100 active:shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px];
+  }
+  .neo-btn-primary {
+    @apply neo-btn bg-black text-neo-yellow
+           hover:shadow-[6px_6px_0px_0px_#333] hover:-translate-x-[1px] hover:-translate-y-[1px];
+  }
+  .neo-btn-disabled {
+    @apply neo-btn bg-gray-200 text-gray-400 cursor-not-allowed shadow-none border-gray-400;
+  }
+  .neo-badge {
+    @apply border-2 border-black px-3 py-1 font-black text-sm uppercase shadow-neo-sm;
+  }
+}
