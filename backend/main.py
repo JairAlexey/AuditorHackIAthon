@@ -1,20 +1,16 @@
-"""
-FastAPI — Auditor Agéntico de Facturación de Siniestros
-Endpoint principal: POST /api/audit
-"""
-
 import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
-load_dotenv()  # Carga .env antes de importar agent (necesita las vars)
+load_dotenv() 
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from agent import run_audit_agent
+from email_service import send_report_email
 
 # ── Constantes ─────────────────────────────────────────────────────────────────
 ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"}
@@ -70,11 +66,10 @@ async def health_check():
 
 
 @app.post("/api/audit", tags=["Auditoría"])
-async def audit_invoice(file: UploadFile = File(..., description="Imagen (JPEG/PNG/WebP) o PDF de la factura")):
-    """
-    Recibe una factura, la analiza con GPT-4o Vision y la audita contra el tarifario.
-    Registra el dictamen en Notion y devuelve el resultado completo.
-    """
+async def audit_invoice(
+    file: UploadFile = File(..., description="Imagen (JPEG/PNG/WebP) o PDF de la factura"),
+    sinister_report: str = Form(default="", description="Reporte de siniestralidad del ajustador"),
+):
 
     # Validar tipo de contenido
     if file.content_type not in ALLOWED_TYPES:
@@ -122,7 +117,7 @@ async def audit_invoice(file: UploadFile = File(..., description="Imagen (JPEG/P
 
     # Ejecutar agente
     try:
-        result = await run_audit_agent(contents, content_type, file.filename or "factura")
+        result = await run_audit_agent(contents, content_type, file.filename or "factura", sinister_report)
         return JSONResponse(content=result)
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -131,3 +126,24 @@ async def audit_invoice(file: UploadFile = File(..., description="Imagen (JPEG/P
             status_code=500,
             detail=f"Error interno del servidor. Intenta de nuevo. Detalle: {exc}",
         ) from exc
+
+
+@app.post("/api/send-report", tags=["Email"])
+async def send_report(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Body JSON inválido.")
+
+    to_email   = (body.get("email") or "").strip()
+    audit_data = body.get("audit_data")
+
+    if not to_email:
+        raise HTTPException(status_code=400, detail="Campo 'email' requerido.")
+    if not audit_data:
+        raise HTTPException(status_code=400, detail="Campo 'audit_data' requerido.")
+
+    result = send_report_email(to_email, audit_data)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Error enviando correo."))
+    return JSONResponse(content=result)

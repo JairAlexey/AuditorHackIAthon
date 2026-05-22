@@ -17,3 +17,7 @@ notion-client==2.2.1
 
 # PDF → imagen
 PyMuPDF==1.25.1
+
+# Email + PDF report
+mailjet-rest==1.6.0
+reportlab==4.2.5

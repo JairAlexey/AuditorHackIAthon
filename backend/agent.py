@@ -1,19 +1,3 @@
-"""
-LangChain Agent + Tools para auditoría de facturas de siniestros.
-Flujo:
-  1. GPT-4o-mini Vision → extrae ítems estructurados (imagen/PDF)
-  2. AgentExecutor con 2 tools:
-       • consultar_tarifario        → Supabase
-       • registrar_dictamen_notion  → Notion
-  3. Devuelve JSON con dictamen, ítems auditados y URL de Notion
-
-Optimización de tokens:
-  - Modelo configurable vía OPENAI_MODEL (default: gpt-4o-mini, ~17x más barato que gpt-4o)
-  - max_tokens acotado en cada llamada
-  - Prompts compactos: misma semántica, menos tokens
-  - max_iterations=12 (suficiente para facturas de hasta ~10 ítems)
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -55,11 +39,22 @@ class RegistrarDictamenInput(BaseModel):
     numero_factura: str = Field(description="Número de la factura")
     taller: str = Field(description="Nombre del taller")
     total_facturado: float = Field(description="Total de la factura")
+    total_aprobado: float = Field(
+        description="Suma de precios aprobados: precio_maximo para ítems OK/SOBREPRECIO, "
+                    "0 para INCOHERENCIA_MECANICA/DUPLICADO/NO_TARIFADO"
+    )
     dictamen: str = Field(
         description="Uno de: 'Aprobado', 'Alerta - Sobreprecio', "
-                    "'Alerta - Ítem No Tarifado', 'Rechazado - Cobro Duplicado'"
+                    "'Alerta - Ítem No Tarifado', 'Rechazado - Cobro Duplicado', "
+                    "'Rechazado - Incoherencia Mecánica'"
     )
-    observaciones: str = Field(description="Detalle de discrepancias o confirmación de conformidad")
+    observaciones: str = Field(
+        description="Detalle completo: sobreprecios con montos, "
+                    "ítems incoherentes con el siniestro, duplicados detectados"
+    )
+    nivel_riesgo: str = Field(
+        description="'Bajo' si 0-1 alertas, 'Medio' si 2-3 alertas, 'Alto' si 4+ alertas"
+    )
 
 
 # ── Tool 1: Supabase ───────────────────────────────────────────────────────────
@@ -80,6 +75,7 @@ def consultar_tarifario(descripcion: str, precio_cobrado: float) -> str:
             return json.dumps({
                 "encontrado": False, "alerta": True,
                 "tipo_alerta": "ITEM_NO_TARIFADO",
+                "precio_maximo": 0,
                 "mensaje": f"'{descripcion}' no está en el tarifario.",
             })
         item = result.data[0]
@@ -101,20 +97,19 @@ def consultar_tarifario(descripcion: str, precio_cobrado: float) -> str:
         })
     except Exception as exc:
         err = str(exc)
-        # Error 42703 = columna inexistente → la tabla no coincide con el schema esperado.
-        # Devolvemos ERROR_SCHEMA para que el agente sepa que no debe reintentar.
         if "42703" in err or "does not exist" in err:
             return json.dumps({
                 "encontrado": False,
                 "alerta": True,
                 "tipo_alerta": "ERROR_SCHEMA",
+                "precio_maximo": 0,
                 "mensaje": (
                     "ERROR_SCHEMA: La tabla 'tarifario' no tiene el esquema esperado. "
                     "NO vuelvas a llamar a esta herramienta. "
                     "Marca todos los ítems pendientes como NO_TARIFADO y continúa."
                 ),
             })
-        return json.dumps({"error": err, "alerta": True, "tipo_alerta": "ERROR_TOOL"})
+        return json.dumps({"error": err, "alerta": True, "tipo_alerta": "ERROR_TOOL", "precio_maximo": 0})
 
 
 # ── Tool 2: Notion ─────────────────────────────────────────────────────────────
@@ -124,57 +119,174 @@ _VALID_DICTAMENES = {
     "Alerta - Sobreprecio",
     "Alerta - Ítem No Tarifado",
     "Rechazado - Cobro Duplicado",
+    "Rechazado - Incoherencia Mecánica",
 }
+
+_VALID_RIESGOS = {"Bajo", "Medio", "Alto"}
+
+
+def _generate_borrador(dictamen: str, observaciones: str, taller: str, numero_factura: str) -> str:
+    fecha = datetime.now().strftime("%Y-%m-%d")
+    return (
+        f"Estimado representante de {taller},\n\n"
+        f"Mediante el presente comunicado, el Departamento de Auditoría de Siniestros informa "
+        f"la observación de la factura N° {numero_factura}, con fecha de evaluación {fecha}.\n\n"
+        f"DICTAMEN: {dictamen}\n\n"
+        f"MOTIVOS DETALLADOS:\n{observaciones}\n\n"
+        "Se solicita la corrección de los conceptos observados o la presentación de documentación "
+        "adicional que justifique los montos facturados, dentro de los 5 días hábiles siguientes "
+        "a la recepción del presente.\n\n"
+        "Atentamente,\nDepartamento de Auditoría de Siniestros"
+    )
+
 
 @tool("registrar_dictamen_notion", args_schema=RegistrarDictamenInput)
 def registrar_dictamen_notion(
     numero_factura: str,
     taller: str,
     total_facturado: float,
+    total_aprobado: float,
     dictamen: str,
     observaciones: str,
+    nivel_riesgo: str,
 ) -> str:
-    """Inserta el dictamen de auditoría en la base de datos de Notion."""
+    """Inserta el dictamen de auditoría enriquecido en Notion con ahorro generado, nivel de riesgo y borrador de rechazo."""
     if dictamen not in _VALID_DICTAMENES:
         dictamen = "Alerta - Sobreprecio"
+    if nivel_riesgo not in _VALID_RIESGOS:
+        nivel_riesgo = "Medio"
+
+    ahorro = round(total_facturado - total_aprobado, 2)
+    borrador = _generate_borrador(dictamen, observaciones, taller, numero_factura)
+    detalle = (
+        f"Taller: {taller} | Fecha: {datetime.now().strftime('%Y-%m-%d')}\n"
+        f"Total facturado: ${total_facturado:.2f} | Aprobado: ${total_aprobado:.2f} | "
+        f"Ahorro detectado: ${ahorro:.2f}\n\n{observaciones}"
+    )
+
+    # ── Callouts de alerta por tipo de dictamen ────────────────────────────────
+    _ALERT_MAP = {
+        "Rechazado - Incoherencia Mecánica": (
+            "⚠️ ALERTA: INCONGRUENCIA MECÁNICA DETECTADA — "
+            "Los ítems facturados no corresponden al tipo de daño reportado en el siniestro. "
+            "Revisar cada ítem marcado y solicitar evidencia fotográfica al taller.",
+            "red_background",
+            "⚠️",
+        ),
+        "Rechazado - Cobro Duplicado": (
+            "🚫 ALERTA: COBRO DUPLICADO DETECTADO — "
+            "Se identificaron ítems repetidos en la factura. Posible intento de cobro indebido.",
+            "red_background",
+            "🚫",
+        ),
+        "Alerta - Sobreprecio": (
+            "💰 ALERTA: SOBREPRECIO DETECTADO — "
+            "El precio facturado supera el máximo establecido en el tarifario acordado.",
+            "yellow_background",
+            "💰",
+        ),
+        "Alerta - Ítem No Tarifado": (
+            "❓ ALERTA: ÍTEM NO TARIFADO — "
+            "Se encontraron conceptos que no figuran en el tarifario. Requieren validación manual.",
+            "orange_background",
+            "❓",
+        ),
+    }
+
+    page_children = []
+    if dictamen in _ALERT_MAP:
+        alert_text, alert_color, alert_emoji = _ALERT_MAP[dictamen]
+        page_children.append({
+            "object": "block",
+            "type": "callout",
+            "callout": {
+                "rich_text": [{"type": "text", "text": {"content": alert_text}}],
+                "icon": {"emoji": alert_emoji},
+                "color": alert_color,
+            },
+        })
+        page_children.append({"object": "block", "type": "divider", "divider": {}})
+
+    page_children += [
+        {
+            "object": "block",
+            "type": "heading_2",
+            "heading_2": {
+                "rich_text": [{"type": "text", "text": {"content": "Borrador de Rechazo al Taller"}}],
+                "color": "default",
+            },
+        },
+        {
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": borrador[:2000]}}]
+            },
+        },
+    ]
+
     try:
-        detalle = f"Taller: {taller}\nFecha: {datetime.now().strftime('%Y-%m-%d')}\n\n{observaciones}"
         page = _notion().pages.create(
             parent={"database_id": os.environ["NOTION_DATABASE_ID"]},
             properties={
-                "ID Siniestro":  {"title": [{"text": {"content": numero_factura[:100]}}]},
-                "Total Auditado": {"number": total_facturado},
-                "Estado":        {"select": {"name": dictamen}},
-                "Detalle":       {"rich_text": [{"text": {"content": detalle[:2000]}}]},
+                "ID Siniestro":    {"title": [{"text": {"content": numero_factura[:100]}}]},
+                "Total Auditado":  {"number": total_facturado},
+                "Ahorro Generado": {"number": ahorro},
+                "Estado":          {"select": {"name": dictamen}},
+                "Nivel de Riesgo": {"select": {"name": nivel_riesgo}},
+                "Detalle":         {"rich_text": [{"text": {"content": detalle[:2000]}}]},
             },
+            children=page_children,
         )
         return json.dumps({
             "success": True,
             "notion_url": page.get("url", ""),
-            "mensaje": "Dictamen registrado en Notion.",
+            "ahorro_generado": ahorro,
+            "nivel_riesgo": nivel_riesgo,
+            "mensaje": f"Dictamen registrado. Ahorro detectado: ${ahorro:.2f}. Riesgo: {nivel_riesgo}.",
         })
     except Exception as exc:
         print(f"[NOTION ERROR] {exc}")
         return json.dumps({"success": False, "error": str(exc)})
 
 
-# ── Paso 1: Extracción visual con GPT-4o-mini ─────────────────────────────────
+# ── Paso 1: Extracción visual con GPT-4o ──────────────────────────────────────
 
-# Prompt compacto — misma información, ~40% menos tokens que la versión verbosa
-_EXTRACT_PROMPT = (
-    "OCR de factura automotriz. Devuelve SOLO este JSON válido, sin markdown:\n"
-    '{"numero_factura":"str","taller":"str","fecha":"str","total":0,'
-    '"items":[{"descripcion":"str","cantidad":0,"precio_unitario":0,"precio_total":0}]}\n'
-    "Usa 'Sin número', 'No identificado' o 'No especificada' si falta algún campo."
-)
+def _make_extract_prompt(sinister_report: str) -> str:
+    report_ctx = ""
+    if sinister_report.strip():
+        report_ctx = (
+            f'\nReporte de siniestralidad del ajustador: "{sinister_report}"\n\n'
+            "Para cada ítem evalúa su coherencia con el reporte:\n"
+            "- coherencia_mecanica=false y alerta_sugerida='INCOHERENCIA_MECANICA' si el ítem "
+            "no corresponde al tipo de daño reportado "
+            "(ej: cobrar 'Bumper Frontal' cuando el choque fue trasero).\n"
+            "- alerta_sugerida='DUPLICADO' si el mismo ítem aparece repetido en la factura.\n"
+            "- alerta_sugerida='OK' en caso contrario.\n"
+            "En razonamiento_agente explica brevemente tu decisión (máx 20 palabras).\n"
+        )
 
-async def _extract_invoice_data(contents: bytes, content_type: str) -> dict[str, Any]:
+    return (
+        f"OCR de factura automotriz.{report_ctx}"
+        "Devuelve SOLO este JSON válido, sin markdown:\n"
+        '{"numero_factura":"str","taller":"str","fecha":"str","total":0,'
+        '"items":[{"codigo":"str","descripcion":"str","cantidad":0,"precio_unitario":0,'
+        '"coherencia_mecanica":true,"razonamiento_agente":"str","alerta_sugerida":"OK"}]}\n'
+        "Valores válidos para alerta_sugerida: 'OK' | 'INCOHERENCIA_MECANICA' | 'DUPLICADO'\n"
+        "Usa 'Sin número', 'No identificado' o 'No especificada' si falta algún campo."
+    )
+
+
+async def _extract_invoice_data(
+    contents: bytes, content_type: str, sinister_report: str = ""
+) -> dict[str, Any]:
     client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
     b64 = base64.b64encode(contents).decode()
+    prompt = _make_extract_prompt(sinister_report)
     response = await client.chat.completions.create(
         model=_model(),
         temperature=0,
-        max_tokens=800,          # facturas raramente necesitan más
+        max_tokens=1200,
         messages=[{
             "role": "user",
             "content": [
@@ -182,10 +294,10 @@ async def _extract_invoice_data(contents: bytes, content_type: str) -> dict[str,
                     "type": "image_url",
                     "image_url": {
                         "url": f"data:{content_type};base64,{b64}",
-                        "detail": "high",  # mantener "high" para capturar precios pequeños
+                        "detail": "high",
                     },
                 },
-                {"type": "text", "text": _EXTRACT_PROMPT},
+                {"type": "text", "text": prompt},
             ],
         }],
     )
@@ -198,27 +310,38 @@ async def _extract_invoice_data(contents: bytes, content_type: str) -> dict[str,
 # ── Paso 2: Agente LangChain ───────────────────────────────────────────────────
 
 _SYSTEM = """\
-Eres auditor de facturas de siniestros. Sigue este proceso estrictamente:
+Eres perito auditor de facturas de siniestros. Los ítems extraídos incluyen evaluación previa de coherencia mecánica (campo alerta_sugerida).
 
-1. VERIFICAR cada ítem usando 'consultar_tarifario'.
-2. DETECTAR duplicados (misma descripción + precio).
-3. DICTAMEN: "Aprobado" | "Alerta - Sobreprecio" | "Alerta - Ítem No Tarifado" | "Rechazado - Cobro Duplicado".
-   (Cobro duplicado tiene precedencia.)
-4. REGISTRAR con 'registrar_dictamen_notion'.
-5. Responder SOLO con este JSON (sin texto adicional):
-{{"dictamen":"str","items_auditados":[{{"descripcion":"str","precio":0,"estado":"OK|SOBREPRECIO|NO_TARIFADO|DUPLICADO","observacion":"str"}}],"total_facturado":0,"alertas":0,"notion_url":"str","resumen":"str"}}
+Proceso estricto:
+1. VERIFICAR el precio de cada ítem con 'consultar_tarifario'.
+2. COMBINAR alertas — el estado final de cada ítem es el más grave de:
+   - Alerta de precio: SOBREPRECIO o NO_TARIFADO (resultado de consultar_tarifario)
+   - Alerta mecánica del ítem: alerta_sugerida='INCOHERENCIA_MECANICA'
+   - Alerta de duplicado: alerta_sugerida='DUPLICADO'
+   Precedencia: DUPLICADO > INCOHERENCIA_MECANICA > SOBREPRECIO > NO_TARIFADO > OK
+3. CALCULAR total_aprobado = suma de precio_maximo (del tarifario) para ítems OK/SOBREPRECIO + 0 para el resto.
+4. CONTAR alertas = número de ítems con estado ≠ OK.
+5. NIVEL_RIESGO: "Bajo" si alertas≤1 | "Medio" si alertas 2-3 | "Alto" si alertas≥4.
+6. DICTAMEN (aplica el más grave encontrado):
+   "Rechazado - Cobro Duplicado" | "Rechazado - Incoherencia Mecánica" | "Alerta - Sobreprecio" | "Alerta - Ítem No Tarifado" | "Aprobado"
+7. REGISTRAR con 'registrar_dictamen_notion' incluyendo total_aprobado, nivel_riesgo y observaciones detalladas.
+8. Responder SOLO con este JSON (sin texto adicional):
+{{"dictamen":"str","items_auditados":[{{"descripcion":"str","precio":0,"estado":"OK|SOBREPRECIO|NO_TARIFADO|DUPLICADO|INCOHERENCIA_MECANICA","observacion":"str","razonamiento_agente":"str","alerta_sugerida":"OK|INCOHERENCIA_MECANICA|DUPLICADO"}}],"total_facturado":0,"total_aprobado":0,"alertas":0,"notion_url":"str","resumen":"str"}}
 
-REGLA CRÍTICA: Si 'consultar_tarifario' devuelve tipo_alerta="ERROR_SCHEMA" o tipo_alerta="ERROR_TOOL",
-NO la vuelvas a llamar bajo ninguna circunstancia. Marca inmediatamente todos los ítems como NO_TARIFADO,
-establece el dictamen como "Alerta - Ítem No Tarifado" y continúa con el paso 4."""
+REGLA CRÍTICA: Si 'consultar_tarifario' devuelve ERROR_SCHEMA o ERROR_TOOL, NO la vuelvas a llamar bajo ninguna circunstancia. Marca todos los ítems como NO_TARIFADO y continúa con el paso 7."""
 
 
-async def run_audit_agent(contents: bytes, content_type: str, filename: str) -> dict[str, Any]:
+async def run_audit_agent(
+    contents: bytes,
+    content_type: str,
+    filename: str,
+    sinister_report: str = "",
+) -> dict[str, Any]:
     """Punto de entrada principal: extrae datos y ejecuta el agente auditor."""
 
-    # 1. Extracción visual
+    # 1. Extracción visual con análisis de coherencia mecánica
     try:
-        invoice_data = await _extract_invoice_data(contents, content_type)
+        invoice_data = await _extract_invoice_data(contents, content_type, sinister_report)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"GPT no devolvió JSON válido en la extracción: {exc}") from exc
     except Exception as exc:
@@ -228,7 +351,7 @@ async def run_audit_agent(contents: bytes, content_type: str, filename: str) -> 
     llm = ChatOpenAI(
         model=_model(),
         temperature=0,
-        max_tokens=1000,  # suficiente para el JSON de respuesta + razonamiento
+        max_tokens=1500,
         openai_api_key=os.environ["OPENAI_API_KEY"],
     )
 
@@ -244,21 +367,21 @@ async def run_audit_agent(contents: bytes, content_type: str, filename: str) -> 
         agent=agent,
         tools=tools,
         verbose=True,
-        max_iterations=10,
-        max_execution_time=90,          # corta el bucle si algo se atasca más de 90s
-        early_stopping_method="generate", # en vez de detenerse en seco, genera respuesta final
+        max_iterations=12,
+        max_execution_time=90,
+        early_stopping_method="generate",
         handle_parsing_errors=True,
     )
 
-    # 3. Input compacto
     user_input = (
         f"Audita '{filename}':\n{json.dumps(invoice_data, ensure_ascii=False)}\n"
-        "Verifica cada ítem, detecta duplicados, registra en Notion y devuelve el JSON."
+        "Verifica precios en tarifario, combina con alertas mecánicas ya detectadas, "
+        "registra en Notion y devuelve el JSON final."
     )
 
     raw = await asyncio.to_thread(executor.invoke, {"input": user_input})
 
-    # 4. Parsear output
+    # 3. Parsear output
     output = raw.get("output", "")
     try:
         s, e = output.find("{"), output.rfind("}") + 1
@@ -266,4 +389,10 @@ async def run_audit_agent(contents: bytes, content_type: str, filename: str) -> 
     except (json.JSONDecodeError, ValueError):
         audit_result = {"resumen": output, "dictamen": "Error en formato de respuesta"}
 
-    return {"success": True, "filename": filename, "invoice_data": invoice_data, "audit_result": audit_result}
+    return {
+        "success": True,
+        "filename": filename,
+        "invoice_data": invoice_data,
+        "audit_result": audit_result,
+        "sinister_report": sinister_report,
+    }

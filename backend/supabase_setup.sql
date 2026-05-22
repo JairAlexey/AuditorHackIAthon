@@ -1,9 +1,3 @@
--- ============================================================
--- Auditor Agéntico de Siniestros — Setup de Supabase
--- Ejecutar en: Supabase → SQL Editor
--- ============================================================
-
--- Tabla de tarifario
 CREATE TABLE IF NOT EXISTS tarifario (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     codigo      TEXT        NOT NULL,
@@ -55,20 +49,3 @@ ALTER TABLE tarifario ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Lectura pública del tarifario"
     ON tarifario FOR SELECT
     USING (activo = TRUE);
-
--- ============================================================
--- ESTRUCTURA DE BASE DE DATOS NOTION (referencia manual)
--- Crear una base de datos en Notion con estas propiedades:
---
---   Nombre de la propiedad   | Tipo
---   ─────────────────────────|──────────────
---   Número de Factura        | Título (Title)
---   Taller                   | Texto (Text)
---   Total Facturado          | Número (Number) → formato: $
---   Dictamen                 | Selección (Select)
---                            |   Opciones: Aprobado | Alerta - Sobreprecio |
---                            |             Alerta - Ítem No Tarifado |
---                            |             Rechazado - Cobro Duplicado
---   Observaciones            | Texto (Text)
---   Fecha Auditoría          | Fecha (Date)
--- ============================================================
