@@ -130,7 +130,7 @@ function Hero() {
 
       <div className="relative max-w-6xl mx-auto px-4 py-12 md:py-16">
         <p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-300 mb-3">
-          Sistema Agéntico IA · Hackathon 2025
+          Sistema Agéntico IA · Hackathon 2026
         </p>
 
         <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight mb-4">
@@ -795,7 +795,7 @@ export default function App() {
 
       <footer className="text-center py-8 mt-4 border-t border-purple-100">
         <p className="text-xs font-bold uppercase tracking-widest text-purple-300">
-          GPT-4o Vision · LangChain · Supabase · Notion · Mailjet · FastAPI
+          Jair Rueda · Mateo Rosero · Junior Espin
         </p>
       </footer>
     </div>
