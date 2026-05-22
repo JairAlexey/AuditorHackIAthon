@@ -35,8 +35,6 @@ const Icons = {
   Notion:     ({ size = '1.1em' }) => <svg {...mkSvg(size, '1.8')}><rect x="3" y="2" width="14" height="16" rx="1.5"/><line x1="6" y1="7" x2="14" y2="7"/><line x1="6" y1="10.5" x2="11" y2="10.5"/></svg>,
 }
 
-// ── Modal de correo ────────────────────────────────────────────────────────────
-
 function EmailModal({ onConfirm, onSkip }) {
   const [email, setEmail] = useState('')
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
@@ -48,24 +46,24 @@ function EmailModal({ onConfirm, onSkip }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={onSkip}
     >
       <div
-        className="neo-card bg-white w-full max-w-md overflow-hidden"
+        className="glass-card w-full max-w-md overflow-hidden animate-float"
         onClick={e => e.stopPropagation()}
       >
-        <div className="bg-black text-neo-yellow px-6 py-4 flex items-center gap-3">
-          <Icons.Mail size="1.6rem" />
+        <div className="bg-gradient-to-r from-clean-tech-accent-blue to-clean-tech-accent-cyan px-6 py-4 flex items-center gap-3">
+          <Icons.Mail size="1.6rem" className="text-white" />
           <div>
-            <p className="font-black uppercase text-lg leading-none tracking-wide">Enviar Reporte PDF</p>
-            <p className="text-sm mt-1 font-medium opacity-60">Recibirás el dictamen completo como adjunto</p>
+            <p className="font-semibold uppercase text-lg leading-none tracking-wide text-white">Enviar Reporte PDF</p>
+            <p className="text-sm mt-1 font-medium text-cyan-100">Recibirás el dictamen completo como adjunto</p>
           </div>
         </div>
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-black uppercase tracking-wider mb-2">
+            <label className="block text-sm font-semibold uppercase tracking-wider mb-2 text-light-primary">
               Correo electrónico
             </label>
             <input
@@ -75,10 +73,9 @@ function EmailModal({ onConfirm, onSkip }) {
               onKeyDown={e => { if (e.key === 'Enter' && valid) onConfirm(email); if (e.key === 'Escape') onSkip() }}
               placeholder="correo@ejemplo.com"
               autoFocus
-              className="w-full border-4 border-black p-3 font-medium text-base bg-[#F9F9F9]
-                         focus:outline-none focus:bg-neo-yellow transition-colors shadow-neo"
+              className="glow-input w-full"
             />
-            <p className="text-xs text-gray-400 font-medium mt-2">
+            <p className="text-xs text-light-secondary font-medium mt-2">
               Enter para confirmar · Esc o clic afuera para cancelar
             </p>
           </div>
@@ -88,21 +85,19 @@ function EmailModal({ onConfirm, onSkip }) {
               onClick={() => valid && onConfirm(email)}
               disabled={!valid}
               className={[
-                'flex-1 py-3.5 font-black text-base uppercase border-4 border-black tracking-wide',
-                'inline-flex items-center justify-center gap-2',
+                'flex-1 py-3.5 font-semibold text-base uppercase rounded-lg tracking-wide',
+                'inline-flex items-center justify-center gap-2 transition-all duration-300',
                 valid
-                  ? 'bg-black text-neo-yellow shadow-neo hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-neo-lg transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none'
-                  : 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed',
+                  ? 'glow-button hover:shadow-glow-cyan active:scale-95'
+                  : 'bg-gray-700 text-gray-500 cursor-not-allowed opacity-50',
               ].join(' ')}
             >
               <Icons.Mail size="1em" /> Auditar y Enviar
             </button>
             <button
               onClick={onSkip}
-              className="px-5 py-3.5 font-black text-base uppercase border-4 border-black bg-white
-                         hover:bg-neo-yellow transition-colors shadow-neo
-                         hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-neo-lg
-                         active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+              className="px-5 py-3.5 font-semibold text-base uppercase rounded-lg tracking-wide
+                         glass-card-hover transition-all duration-300"
             >
               Sin correo
             </button>
@@ -113,30 +108,34 @@ function EmailModal({ onConfirm, onSkip }) {
   )
 }
 
-// ── Estilos de dictamen / estado ───────────────────────────────────────────────
-
 const DICTAMEN_STYLES = {
-  'Aprobado':                          { bg: 'bg-neo-green',  Icon: Icons.Check   },
-  'Alerta - Sobreprecio':              { bg: 'bg-neo-yellow', Icon: Icons.Warning },
-  'Alerta - Ítem No Tarifado':         { bg: 'bg-neo-orange', Icon: Icons.Search  },
-  'Rechazado - Cobro Duplicado':       { bg: 'bg-neo-red',    Icon: Icons.Block   },
-  'Rechazado - Incoherencia Mecánica': { bg: 'bg-neo-red',    Icon: Icons.Block   },
+  'Aprobado': { color: 'text-clean-tech-success', bgChip: 'bg-[rgba(16,185,129,0.2)]', Icon: Icons.Check },
+  'Alerta - Sobreprecio': { color: 'text-clean-tech-warning', bgChip: 'bg-[rgba(245,158,11,0.2)]', Icon: Icons.Warning },
+  'Alerta - Ítem No Tarifado': { color: 'text-clean-tech-warning', bgChip: 'bg-[rgba(245,158,11,0.2)]', Icon: Icons.Search },
+  'Rechazado - Cobro Duplicado': { color: 'text-clean-tech-error', bgChip: 'bg-[rgba(239,68,68,0.2)]', Icon: Icons.Block },
+  'Rechazado - Incoherencia Mecánica': { color: 'text-clean-tech-error', bgChip: 'bg-[rgba(239,68,68,0.2)]', Icon: Icons.Block },
 }
 
 const ESTADO_STYLES = {
-  OK:                    { bg: 'bg-neo-green',  label: 'OK'                   },
-  SOBREPRECIO:           { bg: 'bg-neo-red',    label: 'SOBREPRECIO'          },
-  NO_TARIFADO:           { bg: 'bg-neo-orange', label: 'NO TARIFADO'          },
-  DUPLICADO:             { bg: 'bg-neo-yellow', label: 'DUPLICADO'            },
-  INCOHERENCIA_MECANICA: { bg: 'bg-neo-orange', label: 'INCOHERENCIA MEC.'   },
+  OK: { color: 'text-clean-tech-success', bg: 'bg-[rgba(16,185,129,0.1)]' },
+  SOBREPRECIO: { color: 'text-clean-tech-error', bg: 'bg-[rgba(239,68,68,0.1)]' },
+  NO_TARIFADO: { color: 'text-clean-tech-warning', bg: 'bg-[rgba(245,158,11,0.1)]' },
+  DUPLICADO: { color: 'text-clean-tech-warning', bg: 'bg-[rgba(245,158,11,0.1)]' },
+  INCOHERENCIA_MECANICA: { color: 'text-clean-tech-error', bg: 'bg-[rgba(239,68,68,0.1)]' },
 }
 
-// ── Componentes de resultado ───────────────────────────────────────────────────
+const VERDICT_COLORS = {
+  'Aprobado':                       { bg: 'bg-[rgba(16,185,129,0.18)]',  text: 'text-clean-tech-success' },
+  'Alerta - Sobreprecio':           { bg: 'bg-[rgba(245,158,11,0.18)]',  text: 'text-clean-tech-warning' },
+  'Alerta - Ítem No Tarifado':      { bg: 'bg-[rgba(245,158,11,0.18)]',  text: 'text-clean-tech-warning' },
+  'Rechazado - Cobro Duplicado':    { bg: 'bg-[rgba(239,68,68,0.18)]',   text: 'text-clean-tech-error'   },
+  'Rechazado - Incoherencia Mecánica': { bg: 'bg-[rgba(239,68,68,0.18)]', text: 'text-clean-tech-error'  },
+}
 
 function DictamenBadge({ dictamen }) {
-  const style = DICTAMEN_STYLES[dictamen] ?? { bg: 'bg-gray-300', Icon: Icons.Question }
+  const style = DICTAMEN_STYLES[dictamen] ?? { color: 'text-light-secondary', bgChip: 'bg-gray-600/20', Icon: Icons.Question }
   return (
-    <span className={`${style.bg} neo-badge inline-flex items-center gap-2`}>
+    <span className={`${style.bgChip} ${style.color} px-4 py-2 rounded-lg font-semibold inline-flex items-center gap-2 text-sm`}>
       <style.Icon size="1.1em" />
       <span>{dictamen}</span>
     </span>
@@ -144,38 +143,44 @@ function DictamenBadge({ dictamen }) {
 }
 
 function ItemRow({ item, index }) {
-  const style      = ESTADO_STYLES[item.estado] ?? { bg: 'bg-gray-100', label: item.estado }
+  const style = ESTADO_STYLES[item.estado] ?? { color: 'text-light-secondary', bg: 'bg-gray-600/10' }
   const isMechAlert = item.estado === 'INCOHERENCIA_MECANICA' || item.alerta_sugerida === 'INCOHERENCIA_MECANICA'
-  const isDuplicado = item.estado === 'DUPLICADO'             || item.alerta_sugerida === 'DUPLICADO'
-  const showRazon   = item.razonamiento_agente && (isMechAlert || isDuplicado)
+  const isDuplicado = item.estado === 'DUPLICADO' || item.alerta_sugerida === 'DUPLICADO'
+  const showRazon = item.razonamiento_agente && (isMechAlert || isDuplicado)
 
   return (
-    <div className={`${style.bg} border-2 border-black p-3`}>
+    <div className={`${style.bg} ${style.color} rounded-xl p-4 transition-all duration-300`}
+         style={{
+           border: '1px solid rgba(255,255,255,0.08)',
+           backdropFilter: 'blur(12px)',
+           WebkitBackdropFilter: 'blur(12px)',
+         }}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5 flex-1 min-w-0">
-          <span className="font-black text-xs border-2 border-black bg-white px-1.5 py-0.5 flex-shrink-0 leading-none mt-0.5">
+          <span className="font-bold text-xs px-2 py-1 rounded-md flex-shrink-0 leading-none mt-0.5"
+                style={{ background: 'rgba(59,130,246,0.25)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.3)' }}>
             {String(index + 1).padStart(2, '0')}
           </span>
           <div className="min-w-0">
-            <p className="font-bold text-sm leading-snug">{item.descripcion}</p>
+            <p className="font-semibold text-sm leading-snug text-white/90">{item.descripcion}</p>
             {item.observacion && (
-              <p className="text-xs mt-0.5 opacity-70 font-medium leading-snug">{item.observacion}</p>
+              <p className="text-xs mt-0.5 font-medium leading-snug text-white/50">{item.observacion}</p>
             )}
           </div>
         </div>
         <div className="flex-shrink-0 text-right">
-          <p className="font-black text-sm">
+          <p className="font-semibold text-sm text-white/90">
             {typeof item.precio === 'number' ? `$${item.precio.toFixed(2)}` : '—'}
           </p>
-          <span className="text-xs font-black bg-black text-white px-1.5 py-0.5 mt-0.5 inline-block leading-snug">
-            {style.label}
+          <span className={`text-xs font-semibold px-2 py-1 mt-0.5 inline-block leading-snug rounded-md ${style.color} ${style.bg}`}>
+            {item.estado?.replace(/_/g, ' ')}
           </span>
         </div>
       </div>
       {showRazon && (
-        <div className="mt-2 pt-2 border-t-2 border-dashed border-black">
-          <p className="text-xs font-black uppercase opacity-60">Perito:</p>
-          <p className="text-sm font-semibold leading-snug mt-0.5">{item.razonamiento_agente}</p>
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="text-xs font-semibold uppercase text-white/40 mb-1">Análisis:</p>
+          <p className="text-sm font-medium leading-snug text-white/80">{item.razonamiento_agente}</p>
         </div>
       )}
     </div>
@@ -184,34 +189,42 @@ function ItemRow({ item, index }) {
 
 function LoadingOverlay() {
   const steps = [
-    { Icon: Icons.Eye,      text: 'Extrayendo ítems con GPT-4o Vision'     },
-    { Icon: Icons.Database, text: 'Consultando tarifario en Supabase'       },
+    { Icon: Icons.Eye,      text: 'Extrayendo ítems con GPT-4o Vision' },
+    { Icon: Icons.Database, text: 'Consultando tarifario en Supabase' },
     { Icon: Icons.Search,   text: 'Detectando sobreprecios e incoherencias' },
-    { Icon: Icons.Edit,     text: 'Registrando dictamen en Notion'          },
+    { Icon: Icons.Edit,     text: 'Registrando dictamen en Notion' },
   ]
   return (
-    <div className="neo-card p-6 bg-neo-yellow">
-      <div className="flex items-center gap-4 mb-5">
-        <span className="animate-spin flex-shrink-0" style={{ animationDuration: '2s', display: 'inline-block' }}>
-          <Icons.Gear size="2rem" />
-        </span>
-        <div>
-          <p className="font-black text-lg uppercase leading-none">Agente en ejecución</p>
-          <p className="text-sm font-medium mt-1 opacity-70">Procesando factura, ~30 segundos…</p>
-        </div>
-      </div>
-      <div className="space-y-3">
-        {steps.map((step, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <span
-              className="w-3 h-3 rounded-full bg-black flex-shrink-0"
-              style={{ animation: `pulse-dot 1.4s ease-in-out infinite`, animationDelay: `${i * 0.35}s` }}
-            />
-            <span className="text-sm font-semibold inline-flex items-center gap-2">
-              <step.Icon size="1.1em" />{step.text}
-            </span>
+    <div className="glass-card p-8 relative overflow-hidden float-card">
+      <div className="scanline absolute inset-0" />
+      <div className="relative" style={{ zIndex: 2 }}>
+        <div className="flex items-center gap-4 mb-7">
+          <span className="animate-spin flex-shrink-0" style={{ animationDuration: '2s', display: 'inline-block', color: '#38bdf8' }}>
+            <Icons.Gear size="2.2rem" />
+          </span>
+          <div>
+            <p className="font-bold text-lg uppercase leading-none text-white/90 tracking-wide">Agente en ejecución</p>
+            <p className="text-sm font-medium mt-1 text-white/50">Procesando factura, ~30 segundos…</p>
           </div>
-        ))}
+        </div>
+        <div className="space-y-3.5">
+          {steps.map((step, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{
+                  background: '#38bdf8',
+                  boxShadow: '0 0 8px rgba(56,189,248,0.6)',
+                  animation: `pulse-dot 1.4s ease-in-out infinite`,
+                  animationDelay: `${i * 0.35}s`,
+                }}
+              />
+              <span className="text-sm font-medium inline-flex items-center gap-2 text-white/75">
+                <step.Icon size="1.1em" />{step.text}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -219,21 +232,22 @@ function LoadingOverlay() {
 
 function InvoiceCard({ invoiceData }) {
   return (
-    <div className="neo-card p-5">
-      <h2 className="text-base font-black uppercase border-b-2 border-black pb-2 mb-4 flex items-center gap-2">
+    <div className="glass-card p-6 float-card">
+      <h2 className="text-sm font-bold uppercase pb-3 mb-5 flex items-center gap-2 text-white/80 tracking-widest"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         <Icons.File size="1.1em" /> Factura Procesada
       </h2>
-      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-4">
         {[
-          { label: 'Taller',     value: invoiceData.taller },
+          { label: 'Taller', value: invoiceData.taller },
           { label: 'N° Factura', value: invoiceData.numero_factura },
-          { label: 'Fecha',      value: invoiceData.fecha },
-          { label: 'Total',      value: typeof invoiceData.total === 'number'
+          { label: 'Fecha', value: invoiceData.fecha },
+          { label: 'Total', value: typeof invoiceData.total === 'number'
               ? `$${invoiceData.total.toFixed(2)}` : invoiceData.total },
         ].map(({ label, value }) => (
           <div key={label}>
-            <dt className="text-xs font-black uppercase tracking-wider text-gray-400">{label}</dt>
-            <dd className="font-bold text-base mt-0.5 truncate">{value ?? '—'}</dd>
+            <dt className="text-xs font-semibold uppercase tracking-widest text-white/40 mb-1">{label}</dt>
+            <dd className="font-semibold text-base truncate text-white/90">{value ?? '—'}</dd>
           </div>
         ))}
       </dl>
@@ -244,47 +258,55 @@ function InvoiceCard({ invoiceData }) {
 function AuditResultPanel({ result }) {
   const { invoice_data, audit_result } = result
   const alertCount = audit_result?.alertas ?? 0
-  const dictBg     = DICTAMEN_STYLES[audit_result?.dictamen]?.bg ?? 'bg-gray-100'
-  const totalF     = Number(audit_result?.total_facturado ?? 0)
-  const totalA     = Number(audit_result?.total_aprobado  ?? 0)
-  const ahorro     = Math.max(0, totalF - totalA)
+  const verdict = audit_result?.dictamen ?? 'Error'
+  const verdictColor = VERDICT_COLORS[verdict] ?? { bg: 'bg-gray-600', text: 'text-white' }
+  const totalF = Number(audit_result?.total_facturado ?? 0)
+  const totalA = Number(audit_result?.total_aprobado ?? 0)
+  const ahorro = Math.max(0, totalF - totalA)
 
   return (
     <div className="space-y-4">
       {invoice_data && <InvoiceCard invoiceData={invoice_data} />}
 
-      {/* Dictamen */}
-      <div className={`neo-card p-5 ${dictBg}`}>
-        <h2 className="text-base font-black uppercase border-b-2 border-black pb-2 mb-4">
+      <div className="glass-card p-6 float-card">
+        <h2 className="text-sm font-bold uppercase pb-3 mb-5 tracking-widest text-white/80"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           Dictamen Final
         </h2>
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <DictamenBadge dictamen={audit_result?.dictamen ?? 'Error'} />
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <DictamenBadge dictamen={verdict} />
           {alertCount > 0 && (
-            <span className="font-bold text-sm border-2 border-black bg-white px-2.5 py-1">
+            <span className={`font-semibold text-sm ${verdictColor.bg} ${verdictColor.text} px-3 py-1.5 rounded-lg`}>
               {alertCount} alerta{alertCount !== 1 ? 's' : ''}
             </span>
           )}
         </div>
 
-        {/* Resumen financiero */}
         {audit_result?.total_facturado != null && (
-          <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="grid grid-cols-3 gap-3 mb-6">
             {[
-              { label: 'Facturado', value: `$${totalF.toFixed(2)}` },
-              { label: 'Aprobado',  value: `$${totalA.toFixed(2)}` },
-              { label: 'Ahorro',    value: `$${ahorro.toFixed(2)}` },
-            ].map(({ label, value }) => (
-              <div key={label} className="border-2 border-black bg-white p-2 text-center shadow-neo-sm">
-                <p className="text-xs font-black uppercase opacity-50">{label}</p>
-                <p className="font-black text-lg">{value}</p>
+              { label: 'Facturado', value: `$${totalF.toFixed(2)}`, accent: 'rgba(59,130,246,0.22)',  glow: 'rgba(59,130,246,0.15)'  },
+              { label: 'Aprobado',  value: `$${totalA.toFixed(2)}`, accent: 'rgba(16,185,129,0.22)',  glow: 'rgba(16,185,129,0.15)'  },
+              { label: 'Ahorro',    value: `$${ahorro.toFixed(2)}`, accent: 'rgba(6,182,212,0.22)',   glow: 'rgba(6,182,212,0.15)'   },
+            ].map(({ label, value, accent, glow }) => (
+              <div key={label}
+                   className="rounded-xl p-3 text-center transition-all duration-300"
+                   style={{
+                     background: `linear-gradient(135deg, ${accent}, rgba(255,255,255,0.03))`,
+                     border: '1px solid rgba(255,255,255,0.08)',
+                     backdropFilter: 'blur(16px)',
+                     WebkitBackdropFilter: 'blur(16px)',
+                     boxShadow: `0 4px 20px ${glow}`,
+                   }}>
+                <p className="text-xs font-semibold uppercase tracking-widest text-white/45">{label}</p>
+                <p className="font-bold text-xl text-white/92 mt-1">{value}</p>
               </div>
             ))}
           </div>
         )}
 
         {audit_result?.resumen && (
-          <p className="text-sm font-semibold border-t-2 border-black pt-3 mt-2 leading-relaxed">
+          <p className="text-sm font-medium border-t border-clean-tech-border pt-4 mt-4 leading-relaxed text-light-primary">
             {audit_result.resumen}
           </p>
         )}
@@ -294,32 +316,33 @@ function AuditResultPanel({ result }) {
             href={audit_result.notion_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 inline-flex items-center gap-2 bg-black text-white border-2 border-black
-                       px-4 py-2 font-black text-sm uppercase shadow-neo-sm
-                       hover:bg-white hover:text-black transition-colors"
+            className="mt-6 inline-flex items-center gap-2 bg-gradient-to-r from-clean-tech-accent-blue to-clean-tech-accent-cyan
+                       px-5 py-2.5 font-semibold text-sm uppercase rounded-lg text-white
+                       transition-all duration-300 hover:shadow-glow-blue active:scale-95"
           >
             <Icons.Notion size="1.1em" /> Ver en Notion →
           </a>
         )}
       </div>
 
-      {/* Ítems */}
       {Array.isArray(audit_result?.items_auditados) && audit_result.items_auditados.length > 0 && (
-        <div className="neo-card p-5">
-          <h2 className="text-base font-black uppercase border-b-2 border-black pb-2 mb-4">
-            Ítems Auditados ({audit_result.items_auditados.length})
+        <div className="glass-card p-6 float-card">
+          <h2 className="text-sm font-bold uppercase pb-3 mb-5 tracking-widest text-white/80"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            Ítems Auditados <span className="opacity-50">({audit_result.items_auditados.length})</span>
           </h2>
           <div className="space-y-2">
             {audit_result.items_auditados.map((item, i) => (
               <ItemRow key={i} item={item} index={i} />
             ))}
           </div>
-          <div className="mt-4 pt-3 border-t-2 border-black">
-            <p className="text-xs font-black uppercase mb-2 opacity-60">Leyenda</p>
+          <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+            <p className="text-xs font-semibold uppercase mb-3 text-white/35 tracking-widest">Leyenda de Estados</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(ESTADO_STYLES).map(([key, val]) => (
-                <span key={key} className={`${val.bg} border-2 border-black px-2 py-0.5 text-xs font-black`}>
-                  {val.label}
+                <span key={key} className={`${val.bg} ${val.color} px-3 py-1.5 text-xs font-semibold rounded-lg`}
+                      style={{ backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  {key.replace(/_/g, ' ')}
                 </span>
               ))}
             </div>
@@ -332,28 +355,31 @@ function AuditResultPanel({ result }) {
 
 function ResultsPlaceholder() {
   return (
-    <div className="hidden lg:flex flex-col items-center justify-center min-h-[400px]
-                    border-4 border-dashed border-black bg-white/40 text-center p-10">
-      <div className="opacity-20"><Icons.Search size="3.5rem" /></div>
-      <p className="font-black text-xl uppercase mt-5 opacity-25">Resultados de Auditoría</p>
-      <p className="text-sm font-bold mt-2 opacity-20">Completa el formulario e inicia la auditoría</p>
+    <div className="hidden lg:flex flex-col items-center justify-center min-h-[440px] glass-card text-center p-10">
+      <div style={{ opacity: 0.18 }} className="text-blue-400 mb-1">
+        <Icons.Search size="4rem" />
+      </div>
+      <p className="font-semibold text-2xl uppercase mt-5 tracking-wide" style={{ opacity: 0.35, color: 'white' }}>
+        Resultados de Auditoría
+      </p>
+      <p className="text-sm font-medium mt-2" style={{ opacity: 0.22, color: 'white' }}>
+        Completa el formulario e inicia la auditoría
+      </p>
     </div>
   )
 }
 
-// ── App principal ──────────────────────────────────────────────────────────────
-
 export default function App() {
   const [sinisterReport, setSinisterReport] = useState('')
-  const [file, setFile]                     = useState(null)
-  const [preview, setPreview]               = useState(null)
-  const [loading, setLoading]               = useState(false)
-  const [result, setResult]                 = useState(null)
-  const [error, setError]                   = useState(null)
+  const [file, setFile] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
   const [showEmailModal, setShowEmailModal] = useState(false)
-  const [pendingEmail, setPendingEmail]     = useState('')
-  const [emailStatus, setEmailStatus]       = useState(null)
-  const [emailError, setEmailError]         = useState('')
+  const [pendingEmail, setPendingEmail] = useState('')
+  const [emailStatus, setEmailStatus] = useState(null)
+  const [emailError, setEmailError] = useState('')
 
   const onDrop = useCallback((accepted) => {
     const f = accepted[0]
@@ -387,7 +413,7 @@ export default function App() {
 
     let auditData = null
     try {
-      const res  = await fetch(`${API_URL}/api/audit`, { method: 'POST', body: formData })
+      const res = await fetch(`${API_URL}/api/audit`, { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail ?? `Error ${res.status}`)
       auditData = data; setResult(data)
@@ -400,7 +426,7 @@ export default function App() {
     if (email && auditData?.success) {
       setEmailStatus('sending')
       try {
-        const res  = await fetch(`${API_URL}/api/send-report`, {
+        const res = await fetch(`${API_URL}/api/send-report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, audit_data: auditData }),
@@ -415,27 +441,34 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#EBEBEB] p-2 md:p-4">
+    <div className="min-h-screen relative p-2 md:p-4" style={{ background: '#060612' }}>
+
+      {/* Ambient background orbs */}
+      <div aria-hidden="true" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+        <div className="orb-blue" />
+        <div className="orb-purple" />
+        <div className="orb-cyan" />
+      </div>
 
       {showEmailModal && <EmailModal onConfirm={startAudit} onSkip={() => startAudit('')} />}
 
-      <div className="max-w-[1500px] mx-auto">
+      <div className="max-w-[1500px] mx-auto relative" style={{ zIndex: 1 }}>
 
         {/* ── Header ── */}
-        <header className="mb-4">
-          <div className="neo-card bg-neo-yellow px-6 py-5 flex items-center justify-between gap-6">
+        <header className="mb-6">
+          <div className="liquid-glass-interactive bg-liquid-flow-bg px-6 py-6 md:px-8 md:py-8 flex items-center justify-between gap-6">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.2em] opacity-50 mb-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-light-secondary mb-2">
                 Sistema Agéntico IA · Hackathon
               </p>
-              <h1 className="text-4xl md:text-5xl font-black uppercase leading-none">
+              <h1 className="liquid-text-gradient text-4xl md:text-5xl font-bold uppercase leading-none mb-3">
                 Auditor de Facturación
               </h1>
-              <p className="mt-2 text-sm font-semibold opacity-70">
+              <p className="text-sm font-medium text-light-secondary max-w-2xl">
                 Detecta sobreprecios e incoherencias en facturas de siniestros usando GPT-4o + LangChain.
               </p>
             </div>
-            <div className="hidden sm:flex flex-col gap-1 text-right flex-shrink-0 opacity-40 text-xs font-black uppercase">
+            <div className="hidden sm:flex flex-col gap-1 text-right flex-shrink-0 opacity-40 text-xs font-semibold uppercase text-light-secondary">
               <span>GPT-4o Vision</span>
               <span>LangChain · Supabase</span>
               <span>Notion · Mailjet</span>
@@ -444,15 +477,15 @@ export default function App() {
         </header>
 
         {/* ── Layout de dos columnas ── */}
-        <div className="lg:grid lg:grid-cols-[440px_1fr] lg:gap-5 lg:items-start">
+        <div className="lg:grid lg:grid-cols-[440px_1fr] lg:gap-6 lg:items-start">
 
           {/* ── Columna izquierda: formulario (sticky) ── */}
-          <div className="lg:sticky lg:top-4 space-y-3">
+          <div className="lg:sticky lg:top-4 space-y-4">
 
             {/* 01 Reporte */}
-            <section className="neo-card p-5">
-              <h2 className="text-sm font-black uppercase mb-3 flex items-center gap-2">
-                <span className="bg-black text-white text-xs font-black px-2 py-0.5">01</span>
+            <section className="liquid-glass p-6">
+              <h2 className="text-sm font-semibold uppercase mb-3 flex items-center gap-2 text-light-primary">
+                <span className="bg-clean-tech-accent-blue text-white text-xs font-semibold px-2.5 py-1 rounded">01</span>
                 Reporte de Siniestralidad
               </h2>
               <textarea
@@ -462,43 +495,42 @@ export default function App() {
                 rows={3}
                 disabled={loading}
                 className={[
-                  'w-full border-4 border-black p-3 font-medium text-sm resize-none',
-                  'bg-[#F9F9F9] focus:outline-none focus:bg-neo-yellow transition-colors shadow-neo',
-                  'placeholder:text-gray-400',
+                  'glow-input w-full resize-none',
                   loading ? 'opacity-50 cursor-not-allowed' : '',
                 ].join(' ')}
               />
-              <p className="text-xs font-bold text-gray-400 mt-2">
+              <p className="text-xs font-medium text-light-secondary mt-2.5">
                 Opcional — detecta incoherencias mecánicas en la factura.
               </p>
             </section>
 
             {/* 02 Upload */}
-            <section className="neo-card p-5">
-              <h2 className="text-sm font-black uppercase mb-3 flex items-center gap-2">
-                <span className="bg-black text-white text-xs font-black px-2 py-0.5">02</span>
+            <section className="liquid-glass p-6">
+              <h2 className="text-sm font-semibold uppercase mb-3 flex items-center gap-2 text-light-primary">
+                <span className="bg-clean-tech-accent-blue text-white text-xs font-semibold px-2.5 py-1 rounded">02</span>
                 Cargar Factura
               </h2>
 
               <div
                 {...getRootProps()}
                 className={[
-                  'border-4 border-dashed border-black p-7 text-center cursor-pointer transition-colors',
-                  isDragActive ? 'bg-neo-yellow' : 'bg-[#F9F9F9]',
-                  loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-neo-yellow',
+                  'border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-300',
+                  'bg-[rgba(59,130,246,0.05)] border-[rgba(59,130,246,0.5)]',
+                  isDragActive ? 'border-clean-tech-accent-cyan bg-[rgba(6,182,212,0.1)] shadow-glow-cyan' : 'hover:border-clean-tech-accent-cyan hover:bg-[rgba(6,182,212,0.05)]',
+                  loading ? 'opacity-50 cursor-not-allowed' : '',
                 ].join(' ')}
               >
                 <input {...getInputProps()} />
-                <div className="flex justify-center mb-3 select-none">
+                <div className="flex justify-center mb-3 select-none text-clean-tech-accent-cyan">
                   {isDragActive ? <Icons.FolderOpen size="2.5rem" /> : <Icons.Clip size="2.5rem" />}
                 </div>
                 {isDragActive ? (
-                  <p className="font-black text-base uppercase">Suelta aquí</p>
+                  <p className="font-semibold text-base uppercase text-light-primary">Suelta aquí</p>
                 ) : (
                   <>
-                    <p className="font-black text-base">Arrastra tu factura aquí</p>
-                    <p className="text-sm font-medium mt-1 text-gray-500">o haz clic para seleccionar</p>
-                    <p className="text-xs mt-1.5 font-bold uppercase text-gray-400">
+                    <p className="font-semibold text-base text-light-primary">Arrastra tu factura aquí</p>
+                    <p className="text-sm font-medium mt-1 text-light-secondary">o haz clic para seleccionar</p>
+                    <p className="text-xs mt-2 font-semibold uppercase text-light-secondary">
                       JPG · PNG · WebP · PDF — Máx 10 MB
                     </p>
                   </>
@@ -506,21 +538,21 @@ export default function App() {
               </div>
 
               {file && (
-                <div className="mt-3 border-2 border-black bg-neo-green p-3 flex items-center gap-3">
+                <div className="mt-4 glass-card-hover bg-[rgba(16,185,129,0.1)] border border-clean-tech-success p-4 flex items-center gap-3">
                   {preview
-                    ? <img src={preview} alt="preview" className="w-12 h-12 object-cover border-2 border-black flex-shrink-0" />
-                    : <span className="flex-shrink-0"><Icons.File size="1.8rem" /></span>
+                    ? <img src={preview} alt="preview" className="w-12 h-12 object-cover rounded border border-clean-tech-border flex-shrink-0" />
+                    : <span className="flex-shrink-0 text-clean-tech-success"><Icons.File size="1.8rem" /></span>
                   }
                   <div className="flex-1 min-w-0">
-                    <p className="font-black text-sm truncate">{file.name}</p>
-                    <p className="text-xs font-medium text-gray-600 mt-0.5">
+                    <p className="font-semibold text-sm truncate text-light-primary">{file.name}</p>
+                    <p className="text-xs font-medium text-light-secondary mt-0.5">
                       {(file.size / 1024).toFixed(1)} KB · {file.type}
                     </p>
                   </div>
                   <button
                     onClick={clearFile}
-                    className="flex-shrink-0 bg-black text-white font-black text-xs px-2.5 py-1.5
-                               hover:bg-neo-red transition-colors border-2 border-black"
+                    className="flex-shrink-0 bg-[rgba(239,68,68,0.2)] text-clean-tech-error font-semibold text-xs px-3 py-1.5
+                               hover:bg-[rgba(239,68,68,0.3)] transition-all rounded border border-[rgba(239,68,68,0.3)]"
                   >
                     ✕ Quitar
                   </button>
@@ -533,8 +565,10 @@ export default function App() {
               onClick={handleAudit}
               disabled={!file || loading}
               className={[
-                'w-full py-4 text-base border-4 border-black font-black uppercase tracking-widest transition-all duration-100',
-                !file || loading ? 'neo-btn-disabled' : 'neo-btn-primary',
+                'w-full py-4 text-base font-semibold uppercase rounded-lg tracking-wide transition-all duration-300',
+                !file || loading
+                  ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed opacity-50'
+                  : 'liquid-button w-full',
               ].join(' ')}
             >
               {loading ? (
@@ -543,7 +577,7 @@ export default function App() {
                 </span>
               ) : (
                 <>
-                  <span className="bg-neo-yellow text-black text-xs font-black px-1.5 py-0.5 mr-2">03</span>
+                  <span className="bg-clean-tech-accent-cyan text-[#0F172A] text-xs font-semibold px-2 py-0.5 mr-2 rounded">03</span>
                   Iniciar Auditoría
                 </>
               )}
@@ -551,38 +585,39 @@ export default function App() {
 
             {/* Estado de correo */}
             {emailStatus === 'sending' && (
-              <div className="neo-card-sm bg-neo-yellow p-3 flex items-center gap-2.5">
-                <span className="animate-spin flex-shrink-0" style={{ animationDuration: '1.5s', display: 'inline-block' }}>
+              <div className="glass-card-hover bg-[rgba(245,158,11,0.1)] border border-clean-tech-warning p-3 flex items-center gap-2.5 rounded-lg">
+                <span className="animate-spin flex-shrink-0 text-clean-tech-warning" style={{ animationDuration: '1.5s', display: 'inline-block' }}>
                   <Icons.Gear size="1.1rem" />
                 </span>
-                <p className="font-black text-sm uppercase">Enviando a {pendingEmail}…</p>
+                <p className="font-semibold text-sm uppercase text-light-primary">Enviando a {pendingEmail}…</p>
               </div>
             )}
             {emailStatus === 'sent' && (
-              <div className="neo-card-sm bg-neo-green p-3 flex items-center gap-2.5">
-                <Icons.Check size="1.1rem" />
-                <p className="font-black text-sm uppercase">Enviado a {pendingEmail}</p>
+              <div className="glass-card-hover bg-[rgba(16,185,129,0.1)] border border-clean-tech-success p-3 flex items-center gap-2.5 rounded-lg">
+                <Icons.Check size="1.1rem" className="text-clean-tech-success" />
+                <p className="font-semibold text-sm uppercase text-light-primary">Enviado a {pendingEmail}</p>
               </div>
             )}
             {emailStatus === 'error' && (
-              <div className="neo-card-sm bg-neo-red p-3">
-                <p className="font-black text-sm uppercase inline-flex items-center gap-2">
+              <div className="glass-card-hover bg-[rgba(239,68,68,0.1)] border border-clean-tech-error p-3 rounded-lg">
+                <p className="font-semibold text-sm uppercase inline-flex items-center gap-2 text-clean-tech-error">
                   <Icons.XCircle size="1.1rem" /> Error al enviar correo
                 </p>
-                <p className="text-xs font-medium mt-1">{emailError}</p>
+                <p className="text-xs font-medium mt-2 text-light-secondary">{emailError}</p>
               </div>
             )}
           </div>
 
           {/* ── Columna derecha: resultados ── */}
-          <div className="mt-4 lg:mt-0">
+          <div className="mt-6 lg:mt-0">
             {loading && <LoadingOverlay />}
             {!loading && error && (
-              <div className="neo-card-sm bg-neo-red p-5">
-                <p className="font-black uppercase text-sm mb-1 inline-flex items-center gap-2">
+              <div className="glass-card p-6"
+                   style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                <p className="font-bold uppercase text-sm mb-2 inline-flex items-center gap-2 text-red-400">
                   <Icons.XCircle /> Error
                 </p>
-                <p className="font-semibold text-base">{error}</p>
+                <p className="font-medium text-base text-white/80">{error}</p>
               </div>
             )}
             {!loading && result && <AuditResultPanel result={result} />}
@@ -592,8 +627,8 @@ export default function App() {
         </div>
 
         {/* ── Footer ── */}
-        <footer className="mt-8 text-center">
-          <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+        <footer className="mt-12 text-center pt-8" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <p className="text-xs font-semibold uppercase tracking-widest text-white/25">
             GPT-4o Vision · LangChain · Supabase · Notion · Mailjet · FastAPI
           </p>
         </footer>
