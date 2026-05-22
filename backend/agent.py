@@ -294,30 +294,40 @@ def _make_extract_prompt(sinister_report: str) -> str:
     if sinister_report.strip():
         report_ctx = (
             f'\nReporte de siniestralidad del ajustador: "{sinister_report}"\n\n'
-            "ANÁLISIS DE COHERENCIA MECÁNICA:\n"
-            "Para cada ítem:\n"
-            "1. Extrae la zona dañada del reporte (ej: 'parte derecha', 'trasera', 'frontal', 'techo').\n"
-            "2. Mapea qué componentes corresponden a esa zona:\n"
-            "   - Frontal: bumper delantero, faro, radiador, capó\n"
-            "   - Trasera: bumper trasero, luz trasera, maletero\n"
-            "   - Lado derecho: puerta derecha, espejo, guardabarros, salpicadera, palos laterales\n"
-            "   - Lado izquierdo: puerta izquierda, espejo, guardabarros, salpicadera, palos laterales\n"
-            "   - Techo: techo, molduras superiores\n"
-            "3. Marca INCOHERENCIA_MECANICA si el ítem NO corresponde a esa zona.\n"
-            "4. Marca INCOHERENCIA_MECANICA también si el ítem es absurdo/irrelacionado:\n"
-            "   - Servicios: 'lavado', 'detallado', 'lubricación general', 'mantenimiento preventivo'\n"
-            "   - No relacionados: 'alineación', 'rotación de llantas', 'diagnóstico electrónico'\n"
-            "5. Marca DUPLICADO si el mismo ítem o código aparece 2+ veces en la factura.\n"
-            "6. En razonamiento_agente: explica brevemente la evaluación (máx 20 palabras).\n"
+            "REGLAS CRÍTICAS DE COHERENCIA MECÁNICA (APLICAR ESTRICTAMENTE):\n"
+            "\n1. ZONA AFECTADA:\n"
+            "   Extrae de qué zona es el daño. Ej: 'puerta derecha' → solo afecta esa zona.\n"
+            "\n2. COMPONENTES POR ZONA:\n"
+            "   Derecha:    puerta, vidrio, espejo, moldura, guardabarros, salpicadera\n"
+            "   Izquierda:  puerta, vidrio, espejo, moldura, guardabarros, salpicadera\n"
+            "   Frontal:    bumper delantero, faro, radiador, capó\n"
+            "   Trasero:    bumper trasero, luz, maletero\n"
+            "   Techo:      techo, molduras\n"
+            "\n3. MARCAR INCOHERENCIA_MECANICA INMEDIATAMENTE SI:\n"
+            "   a) ZONA INCORRECTA:\n"
+            "      'Bumper Frontal' cuando daño es 'puerta derecha' → INCOHERENCIA\n"
+            "      'Bumper Trasero' cuando daño es 'puerta derecha' → INCOHERENCIA\n"
+            "   b) MANTENIMIENTO DE RUTINA (jamás por accidente):\n"
+            "      'Cambio de aceite', 'Filtro de aceite', 'Lubricación' → INCOHERENCIA\n"
+            "      'Alineación', 'Rotación de llantas', 'Diagnóstico' → INCOHERENCIA\n"
+            "      'Lavado', 'Pulido', 'Detallado' → INCOHERENCIA\n"
+            "   c) SIN RELACIÓN CON ACCIDENTE → INCOHERENCIA\n"
+            "\n4. DUPLICADOS: mismo código/descripción 2+ veces → DUPLICADO\n"
+            "\n5. CRITERIO DE DUDA: si NO sabes si corresponde → INCOHERENCIA_MECANICA\n"
+            "   Es más seguro rechazar que aprobar.\n"
         )
 
     return (
         f"OCR de factura automotriz.{report_ctx}"
-        "Devuelve SOLO este JSON válido, sin markdown:\n"
+        "DEVUELVE ESTRICTAMENTE:\n"
         '{"numero_factura":"str","taller":"str","fecha":"str","total":0,'
         '"items":[{"codigo":"str","descripcion":"str","cantidad":0,"precio_unitario":0,'
         '"coherencia_mecanica":true,"razonamiento_agente":"str","alerta_sugerida":"OK"}]}\n'
-        "Valores válidos para alerta_sugerida: 'OK' | 'INCOHERENCIA_MECANICA' | 'DUPLICADO'\n"
+        "\nOPCIONES para alerta_sugerida: 'OK' | 'INCOHERENCIA_MECANICA' | 'DUPLICADO'\n"
+        "RECUERDA:\n"
+        "- Cambio de aceite → INCOHERENCIA_MECANICA\n"
+        "- Bumper frontal cuando daño es lateral → INCOHERENCIA_MECANICA\n"
+        "- Si hay duda → INCOHERENCIA_MECANICA (no OK)\n"
         "Usa 'Sin número', 'No identificado' o 'No especificada' si falta algún campo."
     )
 
