@@ -67,7 +67,7 @@ def consultar_tarifario(descripcion: str, precio_cobrado: float) -> str:
             _supabase()
             .table("tarifario")
             .select("descripcion, precio_maximo, unidad")
-            .ilike("descripcion", f"%{descripcion}%")
+            .ilike("descripcion", f"%{descripcion[:200]}%")
             .limit(1)
             .execute()
         )
@@ -92,7 +92,7 @@ def consultar_tarifario(descripcion: str, precio_cobrado: float) -> str:
             "diferencia": diff,
             "mensaje": (
                 f"SOBREPRECIO: cobrado ${precio_cobrado:.2f} vs max ${precio_max:.2f} (+${diff:.2f})"
-                if over else f"OK: ${precio_cobrado:.2f} ≤ max ${precio_max:.2f}"
+                if over else f"OK: ${precio_cobrado:.2f} <= max ${precio_max:.2f}"
             ),
         })
     except Exception as exc:
@@ -125,19 +125,45 @@ _VALID_DICTAMENES = {
 _VALID_RIESGOS = {"Bajo", "Medio", "Alto"}
 
 
-def _generate_borrador(dictamen: str, observaciones: str, taller: str, numero_factura: str) -> str:
-    fecha = datetime.now().strftime("%Y-%m-%d")
+def _generate_informe(dictamen: str, observaciones: str, taller: str, numero_factura: str) -> str:
+    fecha = datetime.now().strftime("%d/%m/%Y")
     return (
-        f"Estimado representante de {taller},\n\n"
-        f"Mediante el presente comunicado, el Departamento de Auditoría de Siniestros informa "
-        f"la observación de la factura N° {numero_factura}, con fecha de evaluación {fecha}.\n\n"
-        f"DICTAMEN: {dictamen}\n\n"
-        f"MOTIVOS DETALLADOS:\n{observaciones}\n\n"
-        "Se solicita la corrección de los conceptos observados o la presentación de documentación "
-        "adicional que justifique los montos facturados, dentro de los 5 días hábiles siguientes "
-        "a la recepción del presente.\n\n"
-        "Atentamente,\nDepartamento de Auditoría de Siniestros"
+        f"INFORME DE AUDITORIA DE SINIESTRO\n"
+        f"Fecha: {fecha}  |  Factura N {numero_factura}  |  Taller: {taller}\n\n"
+        f"Estimado representante de {taller}:\n\n"
+        f"Por medio del presente documento, el Departamento de Auditoria de Siniestros "
+        f"comunica formalmente el resultado tecnico de la revision practicada sobre la "
+        f"factura N {numero_factura}, con fecha de evaluacion {fecha}.\n\n"
+        f"RESOLUCION: {dictamen}\n\n"
+        f"FUNDAMENTOS TECNICOS:\n"
+        f"{observaciones}\n\n"
+        f"REQUERIMIENTOS AL TALLER:\n"
+        f"Dentro de un plazo maximo de cinco (5) dias habiles contados desde la recepcion "
+        f"del presente informe, el taller debera presentar alguna de las siguientes "
+        f"alternativas segun corresponda:\n"
+        f"  a) Nota de credito por los conceptos observados.\n"
+        f"  b) Documentacion tecnica que respalde los montos y repuestos facturados.\n"
+        f"  c) Registro fotografico del siniestro que acredite los danos reclamados.\n\n"
+        f"El incumplimiento de los plazos establecidos podra derivar en la revision "
+        f"del acuerdo de prestacion de servicios con la compania aseguradora.\n\n"
+        f"Atentamente,\n"
+        f"Departamento de Auditoria de Siniestros\n"
+        f"Compania de Seguros"
     )
+
+
+def _text_blocks(text: str, limit: int = 1900) -> list:
+    """Divide un texto largo en múltiples bloques de párrafo para Notion."""
+    blocks = []
+    for i in range(0, len(text), limit):
+        blocks.append({
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": text[i:i + limit]}}]
+            },
+        })
+    return blocks or [{"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}]
 
 
 @tool("registrar_dictamen_notion", args_schema=RegistrarDictamenInput)
@@ -150,79 +176,90 @@ def registrar_dictamen_notion(
     observaciones: str,
     nivel_riesgo: str,
 ) -> str:
-    """Inserta el dictamen de auditoría enriquecido en Notion con ahorro generado, nivel de riesgo y borrador de rechazo."""
+    """Inserta el dictamen de auditoría enriquecido en Notion con ahorro generado, nivel de riesgo e informe de rechazo."""
     if dictamen not in _VALID_DICTAMENES:
         dictamen = "Alerta - Sobreprecio"
     if nivel_riesgo not in _VALID_RIESGOS:
         nivel_riesgo = "Medio"
 
     ahorro = round(total_facturado - total_aprobado, 2)
-    borrador = _generate_borrador(dictamen, observaciones, taller, numero_factura)
+    informe = _generate_informe(dictamen, observaciones, taller, numero_factura)
     detalle = (
         f"Taller: {taller} | Fecha: {datetime.now().strftime('%Y-%m-%d')}\n"
         f"Total facturado: ${total_facturado:.2f} | Aprobado: ${total_aprobado:.2f} | "
         f"Ahorro detectado: ${ahorro:.2f}\n\n{observaciones}"
     )
 
-    # ── Callouts de alerta por tipo de dictamen ────────────────────────────────
+    # ── Callouts de alerta por tipo de dictamen (sin emojis en el texto) ─────────
     _ALERT_MAP = {
         "Rechazado - Incoherencia Mecánica": (
-            "⚠️ ALERTA: INCONGRUENCIA MECÁNICA DETECTADA — "
+            "ALERTA: INCONGRUENCIA MECANICA DETECTADA — "
             "Los ítems facturados no corresponden al tipo de daño reportado en el siniestro. "
             "Revisar cada ítem marcado y solicitar evidencia fotográfica al taller.",
             "red_background",
-            "⚠️",
+            "!",
         ),
         "Rechazado - Cobro Duplicado": (
-            "🚫 ALERTA: COBRO DUPLICADO DETECTADO — "
-            "Se identificaron ítems repetidos en la factura. Posible intento de cobro indebido.",
+            "ALERTA: COBRO DUPLICADO DETECTADO — "
+            "Se identificaron ítems repetidos en la factura. Posible cobro indebido.",
             "red_background",
-            "🚫",
+            "x",
         ),
         "Alerta - Sobreprecio": (
-            "💰 ALERTA: SOBREPRECIO DETECTADO — "
+            "ALERTA: SOBREPRECIO DETECTADO — "
             "El precio facturado supera el máximo establecido en el tarifario acordado.",
             "yellow_background",
-            "💰",
+            "$",
         ),
         "Alerta - Ítem No Tarifado": (
-            "❓ ALERTA: ÍTEM NO TARIFADO — "
+            "ALERTA: ITEM NO TARIFADO — "
             "Se encontraron conceptos que no figuran en el tarifario. Requieren validación manual.",
             "orange_background",
-            "❓",
+            "?",
         ),
     }
 
-    page_children = []
+    page_children: list = []
+
+    # Bloque de alerta
     if dictamen in _ALERT_MAP:
-        alert_text, alert_color, alert_emoji = _ALERT_MAP[dictamen]
+        alert_text, alert_color, alert_icon = _ALERT_MAP[dictamen]
         page_children.append({
             "object": "block",
             "type": "callout",
             "callout": {
                 "rich_text": [{"type": "text", "text": {"content": alert_text}}],
-                "icon": {"emoji": alert_emoji},
+                "icon": {"type": "emoji", "emoji": "⚠️"},
                 "color": alert_color,
             },
         })
         page_children.append({"object": "block", "type": "divider", "divider": {}})
 
+    # Sección de observaciones/alertas detectadas
     page_children += [
         {
             "object": "block",
             "type": "heading_2",
             "heading_2": {
-                "rich_text": [{"type": "text", "text": {"content": "Borrador de Rechazo al Taller"}}],
+                "rich_text": [{"type": "text", "text": {"content": "Detalle de Alertas Detectadas"}}],
                 "color": "default",
             },
         },
+        *_text_blocks(observaciones),
+        {"object": "block", "type": "divider", "divider": {}},
+    ]
+
+    # Sección de informe formal
+    page_children += [
         {
             "object": "block",
-            "type": "paragraph",
-            "paragraph": {
-                "rich_text": [{"type": "text", "text": {"content": borrador[:2000]}}]
+            "type": "heading_2",
+            "heading_2": {
+                "rich_text": [{"type": "text", "text": {"content": "Informe de Rechazo al Taller"}}],
+                "color": "default",
             },
         },
+        *_text_blocks(informe),
     ]
 
     try:
@@ -257,22 +294,40 @@ def _make_extract_prompt(sinister_report: str) -> str:
     if sinister_report.strip():
         report_ctx = (
             f'\nReporte de siniestralidad del ajustador: "{sinister_report}"\n\n'
-            "Para cada ítem evalúa su coherencia con el reporte:\n"
-            "- coherencia_mecanica=false y alerta_sugerida='INCOHERENCIA_MECANICA' si el ítem "
-            "no corresponde al tipo de daño reportado "
-            "(ej: cobrar 'Bumper Frontal' cuando el choque fue trasero).\n"
-            "- alerta_sugerida='DUPLICADO' si el mismo ítem aparece repetido en la factura.\n"
-            "- alerta_sugerida='OK' en caso contrario.\n"
-            "En razonamiento_agente explica brevemente tu decisión (máx 20 palabras).\n"
+            "REGLAS CRÍTICAS DE COHERENCIA MECÁNICA (APLICAR ESTRICTAMENTE):\n"
+            "\n1. ZONA AFECTADA:\n"
+            "   Extrae de qué zona es el daño. Ej: 'puerta derecha' → solo afecta esa zona.\n"
+            "\n2. COMPONENTES POR ZONA:\n"
+            "   Derecha:    puerta, vidrio, espejo, moldura, guardabarros, salpicadera\n"
+            "   Izquierda:  puerta, vidrio, espejo, moldura, guardabarros, salpicadera\n"
+            "   Frontal:    bumper delantero, faro, radiador, capó\n"
+            "   Trasero:    bumper trasero, luz, maletero\n"
+            "   Techo:      techo, molduras\n"
+            "\n3. MARCAR INCOHERENCIA_MECANICA INMEDIATAMENTE SI:\n"
+            "   a) ZONA INCORRECTA:\n"
+            "      'Bumper Frontal' cuando daño es 'puerta derecha' → INCOHERENCIA\n"
+            "      'Bumper Trasero' cuando daño es 'puerta derecha' → INCOHERENCIA\n"
+            "   b) MANTENIMIENTO DE RUTINA (jamás por accidente):\n"
+            "      'Cambio de aceite', 'Filtro de aceite', 'Lubricación' → INCOHERENCIA\n"
+            "      'Alineación', 'Rotación de llantas', 'Diagnóstico' → INCOHERENCIA\n"
+            "      'Lavado', 'Pulido', 'Detallado' → INCOHERENCIA\n"
+            "   c) SIN RELACIÓN CON ACCIDENTE → INCOHERENCIA\n"
+            "\n4. DUPLICADOS: mismo código/descripción 2+ veces → DUPLICADO\n"
+            "\n5. CRITERIO DE DUDA: si NO sabes si corresponde → INCOHERENCIA_MECANICA\n"
+            "   Es más seguro rechazar que aprobar.\n"
         )
 
     return (
         f"OCR de factura automotriz.{report_ctx}"
-        "Devuelve SOLO este JSON válido, sin markdown:\n"
+        "DEVUELVE ESTRICTAMENTE:\n"
         '{"numero_factura":"str","taller":"str","fecha":"str","total":0,'
         '"items":[{"codigo":"str","descripcion":"str","cantidad":0,"precio_unitario":0,'
         '"coherencia_mecanica":true,"razonamiento_agente":"str","alerta_sugerida":"OK"}]}\n'
-        "Valores válidos para alerta_sugerida: 'OK' | 'INCOHERENCIA_MECANICA' | 'DUPLICADO'\n"
+        "\nOPCIONES para alerta_sugerida: 'OK' | 'INCOHERENCIA_MECANICA' | 'DUPLICADO'\n"
+        "RECUERDA:\n"
+        "- Cambio de aceite → INCOHERENCIA_MECANICA\n"
+        "- Bumper frontal cuando daño es lateral → INCOHERENCIA_MECANICA\n"
+        "- Si hay duda → INCOHERENCIA_MECANICA (no OK)\n"
         "Usa 'Sin número', 'No identificado' o 'No especificada' si falta algún campo."
     )
 
@@ -312,23 +367,52 @@ async def _extract_invoice_data(
 _SYSTEM = """\
 Eres perito auditor de facturas de siniestros. Los ítems extraídos incluyen evaluación previa de coherencia mecánica (campo alerta_sugerida).
 
-Proceso estricto:
-1. VERIFICAR el precio de cada ítem con 'consultar_tarifario'.
-2. COMBINAR alertas — el estado final de cada ítem es el más grave de:
-   - Alerta de precio: SOBREPRECIO o NO_TARIFADO (resultado de consultar_tarifario)
-   - Alerta mecánica del ítem: alerta_sugerida='INCOHERENCIA_MECANICA'
-   - Alerta de duplicado: alerta_sugerida='DUPLICADO'
-   Precedencia: DUPLICADO > INCOHERENCIA_MECANICA > SOBREPRECIO > NO_TARIFADO > OK
-3. CALCULAR total_aprobado = suma de precio_maximo (del tarifario) para ítems OK/SOBREPRECIO + 0 para el resto.
-4. CONTAR alertas = número de ítems con estado ≠ OK.
-5. NIVEL_RIESGO: "Bajo" si alertas≤1 | "Medio" si alertas 2-3 | "Alto" si alertas≥4.
-6. DICTAMEN (aplica el más grave encontrado):
-   "Rechazado - Cobro Duplicado" | "Rechazado - Incoherencia Mecánica" | "Alerta - Sobreprecio" | "Alerta - Ítem No Tarifado" | "Aprobado"
-7. REGISTRAR con 'registrar_dictamen_notion' incluyendo total_aprobado, nivel_riesgo y observaciones detalladas.
-8. Responder SOLO con este JSON (sin texto adicional):
+Proceso ESTRICTO paso a paso:
+
+1. PARA CADA ÍTEM:
+   a) Consulta 'consultar_tarifario' con su descripción y precio.
+   b) ASIGNA el estado final usando esta lógica (APLICAR ESTRICTAMENTE):
+      - Si alerta_sugerida='DUPLICADO' → estado='DUPLICADO'
+      - Si alerta_sugerida='INCOHERENCIA_MECANICA' → estado='INCOHERENCIA_MECANICA' (SIEMPRE, ignora precio)
+      - Si tarifario devuelve SOBREPRECIO → estado='SOBREPRECIO'
+      - Si tarifario devuelve NO_TARIFADO → estado='NO_TARIFADO'
+      - Si nada anterior aplica → estado='OK'
+
+2. GENERAR OBSERVACIONES DETALLADAS:
+   - Si INCOHERENCIA_MECANICA: explica POR QUÉ no corresponde (ej: "Bumper frontal no afectado por daño en puerta derecha")
+   - Si SOBREPRECIO: muestra diferencia de precio
+   - Si DUPLICADO: señala repetición
+   - Si NO_TARIFADO: especifica que no está en tarifa
+
+3. CALCULAR total_aprobado = suma de precio_maximo SOLO para ítems OK + 0 para TODO LO DEMÁS (INCOHERENCIA, DUPLICADO, SOBREPRECIO, NO_TARIFADO)
+
+4. CONTAR alertas = número de ítems con estado ≠ OK
+
+5. NIVEL_RIESGO:
+   - "Bajo" si alertas ≤ 1
+   - "Medio" si alertas 2-3
+   - "Alto" si alertas ≥ 4
+
+6. DICTAMEN (más grave encontrado):
+   - Si hay DUPLICADO → "Rechazado - Cobro Duplicado"
+   - Si hay INCOHERENCIA_MECANICA (sin DUPLICADO) → "Rechazado - Incoherencia Mecánica"
+   - Si hay SOBREPRECIO (sin DUPLICADO, sin INCOHERENCIA) → "Alerta - Sobreprecio"
+   - Si hay NO_TARIFADO (sin lo anterior) → "Alerta - Ítem No Tarifado"
+   - Si todos OK → "Aprobado"
+
+7. GENERAR RESUMEN COMPLETO:
+   Incluye TODAS las incoherencias encontradas con explicaciones claras:
+   - Si hay INCOHERENCIA_MECANICA: lista cada uno explicando POR QUÉ
+   - Si hay DUPLICADO: lista repeticiones
+   - Si hay SOBREPRECIO: lista con diferencias
+   - Si hay NO_TARIFADO: lista items no encontrados
+
+8. REGISTRAR con 'registrar_dictamen_notion' con resumen detallado.
+
+9. RESPONDER SOLO con este JSON (sin texto adicional):
 {{"dictamen":"str","items_auditados":[{{"descripcion":"str","precio":0,"estado":"OK|SOBREPRECIO|NO_TARIFADO|DUPLICADO|INCOHERENCIA_MECANICA","observacion":"str","razonamiento_agente":"str","alerta_sugerida":"OK|INCOHERENCIA_MECANICA|DUPLICADO"}}],"total_facturado":0,"total_aprobado":0,"alertas":0,"notion_url":"str","resumen":"str"}}
 
-REGLA CRÍTICA: Si 'consultar_tarifario' devuelve ERROR_SCHEMA o ERROR_TOOL, NO la vuelvas a llamar bajo ninguna circunstancia. Marca todos los ítems como NO_TARIFADO y continúa con el paso 7."""
+REGLA CRÍTICA: Si 'consultar_tarifario' devuelve ERROR_SCHEMA, NO la vuelvas a llamar. Marca todos como NO_TARIFADO."""
 
 
 async def run_audit_agent(

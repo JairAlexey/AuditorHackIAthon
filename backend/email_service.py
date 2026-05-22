@@ -7,19 +7,30 @@ from io import BytesIO
 from typing import Any
 
 
-# ── Borrador (duplicado de agent.py para evitar import circular) ───────────────
-
-def _borrador(dictamen: str, observaciones: str, taller: str, numero_factura: str) -> str:
-    fecha = datetime.now().strftime("%Y-%m-%d")
+def _generate_informe(dictamen: str, observaciones: str, taller: str, numero_factura: str) -> str:
+    fecha = datetime.now().strftime("%d/%m/%Y")
     return (
-        f"Estimado representante de {taller},\n\n"
-        f"El Departamento de Auditoría informa la observación de la factura "
-        f"N° {numero_factura}, evaluada el {fecha}.\n\n"
-        f"DICTAMEN: {dictamen}\n\n"
-        f"MOTIVOS:\n{observaciones}\n\n"
-        "Se solicita la corrección de los conceptos observados o documentación "
-        "adicional dentro de los 5 días hábiles siguientes.\n\n"
-        "Atentamente,\nDepartamento de Auditoría de Siniestros"
+        f"INFORME DE AUDITORIA DE SINIESTRO\n"
+        f"Fecha: {fecha}  |  Factura N {numero_factura}  |  Taller: {taller}\n\n"
+        f"Estimado representante de {taller}:\n\n"
+        f"Por medio del presente documento, el Departamento de Auditoria de Siniestros "
+        f"comunica formalmente el resultado tecnico de la revision practicada sobre la "
+        f"factura N {numero_factura}, con fecha de evaluacion {fecha}.\n\n"
+        f"RESOLUCION: {dictamen}\n\n"
+        f"FUNDAMENTOS TECNICOS:\n"
+        f"{observaciones}\n\n"
+        f"REQUERIMIENTOS AL TALLER:\n"
+        f"Dentro de un plazo maximo de cinco (5) dias habiles contados desde la recepcion "
+        f"del presente informe, el taller debera presentar alguna de las siguientes "
+        f"alternativas segun corresponda:\n"
+        f"  a) Nota de credito por los conceptos observados.\n"
+        f"  b) Documentacion tecnica que respalde los montos y repuestos facturados.\n"
+        f"  c) Registro fotografico del siniestro que acredite los danos reclamados.\n\n"
+        f"El incumplimiento de los plazos establecidos podra derivar en la revision "
+        f"del acuerdo de prestacion de servicios con la compania aseguradora.\n\n"
+        f"Atentamente,\n"
+        f"Departamento de Auditoria de Siniestros\n"
+        f"Compania de Seguros"
     )
 
 
@@ -34,70 +45,61 @@ def generate_audit_pdf(audit_data: dict) -> bytes:
         HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
     )
 
-    # ── Paleta ────────────────────────────────────────────────────────────────
-    C = {
-        "black":  colors.black,
-        "white":  colors.white,
-        "grey":   colors.Color(0.5, 0.5, 0.5),
-        "lgrey":  colors.Color(0.93, 0.93, 0.93),
-        "green":  colors.Color(0.42, 0.79, 0.47),
-        "red":    colors.Color(1.0,  0.42, 0.42),
-        "orange": colors.Color(1.0,  0.62, 0.11),
-        "yellow": colors.Color(0.96, 0.90, 0.26),
+    BLACK    = colors.black
+    WHITE    = colors.white
+    GREY_HDR = colors.Color(0.15, 0.15, 0.15)   # encabezados de tabla
+    GREY_ALT = colors.Color(0.93, 0.93, 0.93)   # filas alternas
+    GREY_BRD = colors.Color(0.60, 0.60, 0.60)   # bordes
+    GREY_MID = colors.Color(0.45, 0.45, 0.45)   # texto secundario
+
+    ESTADO_LABEL = {
+        "OK":                    "Aprobado",
+        "SOBREPRECIO":           "Sobreprecio",
+        "NO_TARIFADO":           "No tarifado",
+        "DUPLICADO":             "Duplicado",
+        "INCOHERENCIA_MECANICA": "Incoherencia mecánica",
     }
 
-    ESTADO_BG = {
-        "OK":                    C["green"],
-        "SOBREPRECIO":           C["red"],
-        "NO_TARIFADO":           C["orange"],
-        "DUPLICADO":             C["yellow"],
-        "INCOHERENCIA_MECANICA": C["orange"],
-    }
-
-    DICTAMEN_BG = {
-        "Aprobado":                          C["green"],
-        "Alerta - Sobreprecio":              C["yellow"],
-        "Alerta - Ítem No Tarifado":         C["orange"],
-        "Rechazado - Cobro Duplicado":       C["red"],
-        "Rechazado - Incoherencia Mecánica": C["red"],
-    }
-
-    # ── Estilos ────────────────────────────────────────────────────────────────
     base = getSampleStyleSheet()
+
     def ps(name, **kw):
-        defaults = {"fontName": "Helvetica", "fontSize": 9, "leading": 13}
+        defaults = {"fontName": "Helvetica", "fontSize": 10, "leading": 14,
+                    "textColor": BLACK}
         defaults.update(kw)
         return ParagraphStyle(name, parent=base["Normal"], **defaults)
+
     s = {
-        "title":  ps("title",  fontName="Helvetica-Bold", fontSize=20, spaceAfter=2, leading=24),
-        "sub":    ps("sub",    fontSize=8,  textColor=C["grey"]),
-        "h2":     ps("h2",     fontName="Helvetica-Bold", fontSize=11, spaceBefore=10, spaceAfter=3),
-        "label":  ps("label",  fontName="Helvetica-Bold", fontSize=7,  textColor=C["grey"]),
-        "body":   ps("body"),
-        "small":  ps("small",  fontSize=7,  textColor=C["grey"]),
-        "footer": ps("footer", fontSize=7,  textColor=C["grey"], alignment=1),
+        "title":   ps("title",  fontName="Helvetica-Bold", fontSize=16,
+                       leading=20, spaceAfter=2),
+        "sub":     ps("sub",    fontSize=9, textColor=GREY_MID),
+        "h2":      ps("h2",     fontName="Helvetica-Bold", fontSize=11,
+                       spaceBefore=14, spaceAfter=4, textColor=BLACK),
+        "h3":      ps("h3",     fontName="Helvetica-Bold", fontSize=10,
+                       spaceBefore=8, spaceAfter=2),
+        "body":    ps("body",   fontSize=10, leading=14),
+        "body_sm": ps("body_sm", fontSize=9, leading=12),
+        "label":   ps("label",  fontName="Helvetica-Bold", fontSize=8,
+                       textColor=GREY_MID),
+        "small":   ps("small",  fontSize=8, leading=11, textColor=BLACK),
+        "footer":  ps("footer", fontSize=8, textColor=GREY_MID, alignment=1),
+        "center":  ps("center", fontSize=10, alignment=1),
+        "center_b":ps("center_b", fontName="Helvetica-Bold", fontSize=11,
+                       alignment=1),
     }
 
     def lbl(text: str) -> Paragraph:
-        return Paragraph(text, s["label"])
+        return Paragraph(text.upper(), s["label"])
 
-    def info_table(rows: list, col_widths: list) -> Table:
-        t = Table(rows, colWidths=col_widths)
-        t.setStyle(TableStyle([
-            ("FONTNAME",      (0,0), (-1,-1), "Helvetica"),
-            ("FONTSIZE",      (0,0), (-1,-1), 9),
-            ("GRID",          (0,0), (-1,-1), 0.5, colors.Color(0.8, 0.8, 0.8)),
-            ("BACKGROUND",    (0,0), (-1,-1), C["lgrey"]),
-            ("TOPPADDING",    (0,0), (-1,-1), 5),
-            ("BOTTOMPADDING", (0,0), (-1,-1), 5),
-            ("LEFTPADDING",   (0,0), (-1,-1), 6),
-        ]))
-        return t
+    def val(text: str) -> Paragraph:
+        return Paragraph(str(text), s["body"])
 
-    buffer   = BytesIO()
-    doc      = SimpleDocTemplate(buffer, pagesize=A4,
-                                 leftMargin=2*cm, rightMargin=2*cm,
-                                 topMargin=2*cm,  bottomMargin=2*cm)
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=2.5*cm, rightMargin=2.5*cm,
+        topMargin=2.5*cm, bottomMargin=2.5*cm,
+    )
+
     invoice  = audit_data.get("invoice_data", {})
     result   = audit_data.get("audit_result", {})
     sinister = audit_data.get("sinister_report", "")
@@ -108,150 +110,222 @@ def generate_audit_pdf(audit_data: dict) -> bytes:
     ahorro   = max(0.0, total_f - total_a)
     resumen  = result.get("resumen", "")
     notion   = result.get("notion_url", "")
-    W        = 17 * cm
+    W        = 16 * cm
+    fecha_hoy = datetime.now().strftime("%d/%m/%Y")
+    hora_hoy  = datetime.now().strftime("%H:%M")
 
     elems: list = []
 
-    # ── Encabezado ──────────────────────────────────────────────────────────────
-    elems.append(Paragraph("AUDITOR AGÉNTICO DE FACTURACIÓN", s["title"]))
-    elems.append(Paragraph(
-        f"Dictamen de Auditoría — generado el {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        s["sub"]))
-    elems.append(HRFlowable(width=W, thickness=3, color=C["black"], spaceAfter=8))
+    # ── Membrete ─────────────────────────────────────────────────────────────────
+    header_data = [[
+        Paragraph("<b>COMPAÑÍA DE SEGUROS</b><br/>Departamento de Auditoría de Siniestros",
+                  ps("hdr_left", fontName="Helvetica-Bold", fontSize=11, leading=15)),
+        Paragraph(f"Fecha: {fecha_hoy}<br/>Hora:  {hora_hoy}",
+                  ps("hdr_right", fontSize=9, leading=13, alignment=2)),
+    ]]
+    hdr_table = Table(header_data, colWidths=[W*0.65, W*0.35])
+    hdr_table.setStyle(TableStyle([
+        ("VALIGN",  (0,0), (-1,-1), "TOP"),
+        ("TOPPADDING",    (0,0), (-1,-1), 0),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 0),
+    ]))
+    elems.append(hdr_table)
+    elems.append(Spacer(1, 6))
+    elems.append(HRFlowable(width=W, thickness=1.5, color=BLACK, spaceAfter=10))
 
-    # ── Datos factura ────────────────────────────────────────────────────────────
-    elems.append(Paragraph("DATOS DE LA FACTURA", s["h2"]))
-    rows = [
-        [lbl("Taller"),  invoice.get("taller", "—"),         lbl("N° Factura"), invoice.get("numero_factura", "—")],
-        [lbl("Fecha"),   invoice.get("fecha", "—"),           lbl("Total"),      f"${float(invoice.get('total', 0) or 0):.2f}"],
+    # Título del informe
+    elems.append(Paragraph("INFORME DE AUDITORÍA DE FACTURACIÓN", s["title"]))
+    elems.append(Spacer(1, 4))
+    elems.append(HRFlowable(width=W, thickness=0.5, color=GREY_BRD, spaceAfter=12))
+
+    # ── I. Datos de la factura ────────────────────────────────────────────────────
+    elems.append(Paragraph("I.  DATOS DE LA FACTURA", s["h2"]))
+    factura_rows = [
+        [lbl("Taller"),          val(invoice.get("taller", "—")),
+         lbl("N.° de Factura"),  val(invoice.get("numero_factura", "—"))],
+        [lbl("Fecha"),           val(invoice.get("fecha", "—")),
+         lbl("Total Facturado"), val(f"$ {float(invoice.get('total', 0) or 0):,.2f}")],
     ]
-    elems.append(info_table(rows, col_widths=[2.8*cm, 5.7*cm, 3*cm, 5.5*cm]))
+    ft = Table(factura_rows, colWidths=[3*cm, 5.5*cm, 3.5*cm, 4*cm])
+    ft.setStyle(TableStyle([
+        ("GRID",          (0,0), (-1,-1), 0.5, GREY_BRD),
+        ("BACKGROUND",    (0,0), (-1,-1), WHITE),
+        ("TOPPADDING",    (0,0), (-1,-1), 5),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+        ("LEFTPADDING",   (0,0), (-1,-1), 6),
+        ("RIGHTPADDING",  (0,0), (-1,-1), 6),
+        ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+    ]))
+    elems.append(ft)
 
-    # ── Reporte de siniestralidad ────────────────────────────────────────────────
+    # ── II. Descripción del siniestro ─────────────────────────────────────────────
     if sinister:
-        elems.append(Paragraph("REPORTE DE SINIESTRALIDAD", s["h2"]))
+        elems.append(Paragraph("II.  DESCRIPCIÓN DEL SINIESTRO", s["h2"]))
         elems.append(Paragraph(sinister.replace("\n", "<br/>"), s["body"]))
 
-    # ── Dictamen banner ─────────────────────────────────────────────────────────
-    elems.append(Spacer(1, 8))
-    elems.append(Paragraph("DICTAMEN FINAL", s["h2"]))
-    d_color = DICTAMEN_BG.get(dictamen, C["grey"])
-    d_text_color = C["black"] if d_color == C["yellow"] else C["white"]
-    d_table = Table([[dictamen.upper()]], colWidths=[W])
+    # ── III. Dictamen ─────────────────────────────────────────────────────────────
+    seccion = "III." if sinister else "II."
+    elems.append(Paragraph(f"{seccion}  DICTAMEN FINAL", s["h2"]))
+    elems.append(Spacer(1, 2))
+    d_table = Table([[Paragraph(dictamen.upper(), s["center_b"])]], colWidths=[W])
     d_table.setStyle(TableStyle([
-        ("BACKGROUND",    (0,0), (-1,-1), d_color),
-        ("TEXTCOLOR",     (0,0), (-1,-1), d_text_color),
-        ("FONTNAME",      (0,0), (-1,-1), "Helvetica-Bold"),
-        ("FONTSIZE",      (0,0), (-1,-1), 13),
-        ("ALIGN",         (0,0), (-1,-1), "CENTER"),
-        ("TOPPADDING",    (0,0), (-1,-1), 9),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 9),
+        ("BOX",           (0,0), (-1,-1), 1.5, BLACK),
+        ("BACKGROUND",    (0,0), (-1,-1), WHITE),
+        ("TOPPADDING",    (0,0), (-1,-1), 10),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 10),
     ]))
     elems.append(d_table)
 
-    # ── Resumen financiero ───────────────────────────────────────────────────────
-    elems.append(Spacer(1, 5))
-    a_bg = C["green"] if ahorro > 0 else C["lgrey"]
-    a_fg = C["white"] if ahorro > 0 else C["black"]
+    # ── IV. Resumen financiero ────────────────────────────────────────────────────
+    seccion = "IV." if sinister else "III."
+    elems.append(Paragraph(f"{seccion}  RESUMEN FINANCIERO", s["h2"]))
     fin_data = [
-        [lbl("FACTURADO"),  lbl("APROBADO"),  lbl("AHORRO DETECTADO")],
-        [f"${total_f:.2f}", f"${total_a:.2f}", f"${ahorro:.2f}"],
+        [Paragraph("TOTAL FACTURADO", s["center"]),
+         Paragraph("TOTAL APROBADO",  s["center"]),
+         Paragraph("DIFERENCIA DETECTADA", s["center"])],
+        [Paragraph(f"$ {total_f:,.2f}", s["center_b"]),
+         Paragraph(f"$ {total_a:,.2f}", s["center_b"]),
+         Paragraph(f"$ {ahorro:,.2f}",  s["center_b"])],
     ]
-    fin_table = Table(fin_data, colWidths=[W/3]*3)
-    fin_table.setStyle(TableStyle([
-        ("BACKGROUND",    (0,0), (-1,0),  C["black"]),
-        ("TEXTCOLOR",     (0,0), (-1,0),  C["white"]),
-        ("BACKGROUND",    (2,1), (2,1),   a_bg),
-        ("TEXTCOLOR",     (2,1), (2,1),   a_fg),
-        ("FONTNAME",      (0,0), (-1,-1), "Helvetica-Bold"),
-        ("FONTSIZE",      (0,1), (-1,-1), 14),
-        ("FONTSIZE",      (0,0), (-1,0),  7),
-        ("ALIGN",         (0,0), (-1,-1), "CENTER"),
-        ("GRID",          (0,0), (-1,-1), 1.5, C["black"]),
+    fin_t = Table(fin_data, colWidths=[W/3]*3)
+    fin_t.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0), (-1,0),  GREY_HDR),
+        ("TEXTCOLOR",     (0,0), (-1,0),  WHITE),
+        ("BACKGROUND",    (0,1), (-1,1),  WHITE),
+        ("TEXTCOLOR",     (0,1), (-1,1),  BLACK),
+        ("GRID",          (0,0), (-1,-1), 0.5, GREY_BRD),
+        ("FONTNAME",      (0,0), (-1,0),  "Helvetica-Bold"),
+        ("FONTSIZE",      (0,0), (-1,-1), 9),
         ("TOPPADDING",    (0,0), (-1,-1), 6),
         ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+        ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
     ]))
-    elems.append(fin_table)
+    elems.append(fin_t)
 
-    # ── Resumen agente ───────────────────────────────────────────────────────────
     if resumen:
-        elems.append(Spacer(1, 6))
+        elems.append(Spacer(1, 8))
         elems.append(Paragraph(resumen, s["body"]))
 
-    # ── Ítems auditados ──────────────────────────────────────────────────────────
+    # ── V. Detalle de ítems auditados ─────────────────────────────────────────────
     if items:
-        elems.append(Paragraph(f"ÍTEMS AUDITADOS ({len(items)})", s["h2"]))
-        cws = [0.8*cm, 7.5*cm, 2.5*cm, 3.8*cm, 2.4*cm]
-        thead = [["#", "Descripción / Observación", "Precio", "Estado", "Alerta"]]
+        seccion = "V." if sinister else "IV."
+        elems.append(Paragraph(f"{seccion}  DETALLE DE ÍTEMS AUDITADOS", s["h2"]))
+        cws = [0.7*cm, 6.8*cm, 2.2*cm, 3.5*cm, 2.8*cm]
+        thead = [[
+            Paragraph("#",            s["center"]),
+            Paragraph("Descripción",  s["center"]),
+            Paragraph("Precio",       s["center"]),
+            Paragraph("Estado",       s["center"]),
+            Paragraph("Observación",  s["center"]),
+        ]]
         trows = []
-        estado_bgs: list[Any] = []
         for idx, item in enumerate(items):
-            estado  = item.get("estado", "")
-            desc    = item.get("descripcion", "")
-            obs     = item.get("observacion", "")
-            razon   = item.get("razonamiento_agente", "")
-            precio  = item.get("precio", 0)
-            p_str   = f"${float(precio):.2f}" if isinstance(precio, (int, float)) else "—"
+            estado = item.get("estado", "")
+            desc   = item.get("descripcion", "")
+            obs    = item.get("observacion", "") or ""
+            razon  = item.get("razonamiento_agente", "") or ""
+            precio = item.get("precio", 0)
+            p_str  = f"$ {float(precio):,.2f}" if isinstance(precio, (int, float)) else "—"
+            nota   = razon[:100] if razon else obs[:100]
 
-            if obs:
-                desc_p = Paragraph(f"<b>{desc}</b><br/><font size='7' color='grey'>{obs}</font>", s["body"])
-            else:
-                desc_p = Paragraph(f"<b>{desc}</b>", s["body"])
+            desc_p  = Paragraph(desc, s["small"])
+            nota_p  = Paragraph(nota, s["small"])
+            est_lbl = ESTADO_LABEL.get(estado, estado.replace("_", " "))
 
-            razon_p = Paragraph((razon or "")[:90], s["small"])
-            trows.append([str(idx+1), desc_p, p_str, estado.replace("_", " "), razon_p])
-            estado_bgs.append(ESTADO_BG.get(estado, C["lgrey"]))
+            trows.append([
+                Paragraph(str(idx + 1), ps("num", fontSize=8, alignment=1)),
+                desc_p,
+                Paragraph(p_str, ps("pr", fontSize=8, alignment=2)),
+                Paragraph(est_lbl, ps("est", fontSize=8, alignment=1)),
+                nota_p,
+            ])
 
         all_rows = thead + trows
-        item_table = Table(all_rows, colWidths=cws, repeatRows=1)
+        item_t = Table(all_rows, colWidths=cws, repeatRows=1)
         style_cmds = [
-            ("BACKGROUND",    (0,0),  (-1,0),  C["black"]),
-            ("TEXTCOLOR",     (0,0),  (-1,0),  C["white"]),
+            ("BACKGROUND",    (0,0),  (-1,0),  GREY_HDR),
+            ("TEXTCOLOR",     (0,0),  (-1,0),  WHITE),
             ("FONTNAME",      (0,0),  (-1,0),  "Helvetica-Bold"),
             ("FONTSIZE",      (0,0),  (-1,-1), 8),
-            ("ALIGN",         (0,0),  (0,-1),  "CENTER"),
-            ("ALIGN",         (2,0),  (3,-1),  "CENTER"),
-            ("GRID",          (0,0),  (-1,-1), 0.5, C["black"]),
+            ("GRID",          (0,0),  (-1,-1), 0.4, GREY_BRD),
             ("VALIGN",        (0,0),  (-1,-1), "TOP"),
             ("TOPPADDING",    (0,0),  (-1,-1), 4),
             ("BOTTOMPADDING", (0,0),  (-1,-1), 4),
+            ("LEFTPADDING",   (0,0),  (-1,-1), 4),
+            ("RIGHTPADDING",  (0,0),  (-1,-1), 4),
         ]
-        for i, bg in enumerate(estado_bgs):
+        for i in range(len(trows)):
             row = i + 1
-            bg_is_alert = bg not in (C["green"], C["lgrey"])
-            if bg_is_alert:
-                style_cmds.append(("BACKGROUND", (3, row), (3, row), bg))
-                style_cmds.append(("TEXTCOLOR",  (3, row), (3, row),
-                                   C["black"] if bg == C["yellow"] else C["white"]))
-            bg_row = C["lgrey"] if row % 2 == 0 else C["white"]
-            style_cmds.append(("BACKGROUND", (0, row), (2, row), bg_row))
-            style_cmds.append(("BACKGROUND", (4, row), (4, row), bg_row))
-        item_table.setStyle(TableStyle(style_cmds))
-        elems.append(item_table)
+            bg  = GREY_ALT if i % 2 == 0 else WHITE
+            style_cmds.append(("BACKGROUND", (0, row), (-1, row), bg))
+            style_cmds.append(("TEXTCOLOR",  (0, row), (-1, row), BLACK))
+        item_t.setStyle(TableStyle(style_cmds))
+        elems.append(item_t)
 
-    # ── Borrador de rechazo ──────────────────────────────────────────────────────
+    # ── VI. Análisis de coherencia ────────────────────────────────────────────────
+    incoherentes = [
+        it for it in items
+        if it.get("estado") == "INCOHERENCIA_MECANICA"
+        or it.get("alerta_sugerida") == "INCOHERENCIA_MECANICA"
+    ]
+    duplicados = [
+        it for it in items
+        if it.get("estado") == "DUPLICADO"
+        or it.get("alerta_sugerida") == "DUPLICADO"
+    ]
+
+    if incoherentes or duplicados:
+        seccion_n = {"True_True": "VI.", "True_False": "VI.", "False_True": "V."}.get(
+            f"{bool(sinister)}_True", "V.")
+        elems.append(Paragraph(f"{seccion_n}  ANÁLISIS DE COHERENCIA CON EL SINIESTRO", s["h2"]))
+
+        if sinister:
+            elems.append(Paragraph(
+                f"<b>Siniestro declarado:</b> {sinister}", s["body"]))
+            elems.append(Spacer(1, 6))
+
+        if incoherentes:
+            elems.append(Paragraph("Ítems con incoherencia mecánica:", s["h3"]))
+            for it in incoherentes:
+                desc  = it.get("descripcion", "")
+                razon = it.get("razonamiento_agente") or it.get("observacion") or "Sin detalle."
+                elems.append(Paragraph(f"• <b>{desc}:</b> {razon}", s["body_sm"]))
+
+        if duplicados:
+            elems.append(Spacer(1, 6))
+            elems.append(Paragraph("Ítems con cobro duplicado:", s["h3"]))
+            for it in duplicados:
+                desc  = it.get("descripcion", "")
+                razon = it.get("razonamiento_agente") or it.get("observacion") or "Sin detalle."
+                elems.append(Paragraph(f"• <b>{desc}:</b> {razon}", s["body_sm"]))
+
+    # ── VII. Comunicación formal al taller ────────────────────────────────────────
     if dictamen != "Aprobado":
-        elems.append(Spacer(1, 14))
-        elems.append(HRFlowable(width=W, thickness=2, color=C["black"], spaceAfter=6))
-        elems.append(Paragraph("BORRADOR DE RECHAZO AL TALLER", s["h2"]))
-        texto = _borrador(
+        elems.append(Spacer(1, 16))
+        elems.append(HRFlowable(width=W, thickness=0.5, color=GREY_BRD, spaceAfter=10))
+        elems.append(Paragraph("COMUNICACIÓN FORMAL AL TALLER", s["title"]))
+        elems.append(Spacer(1, 4))
+        elems.append(HRFlowable(width=W, thickness=0.5, color=GREY_BRD, spaceAfter=10))
+        texto = _generate_informe(
             dictamen=dictamen,
             observaciones=resumen or "Ver detalle completo en el sistema de auditoría.",
             taller=invoice.get("taller", "Taller"),
             numero_factura=invoice.get("numero_factura", "N/A"),
         )
-        elems.append(Paragraph(texto.replace("\n", "<br/>"), s["body"]))
+        for parrafo in texto.split("\n\n"):
+            elems.append(Paragraph(parrafo.replace("\n", "<br/>"), s["body"]))
+            elems.append(Spacer(1, 6))
 
-    # ── Notion link ──────────────────────────────────────────────────────────────
+    # ── Notion ────────────────────────────────────────────────────────────────────
     if notion:
         elems.append(Spacer(1, 8))
-        elems.append(Paragraph(f"Panel de control Notion: {notion}", s["small"]))
+        elems.append(Paragraph(f"Registro en plataforma: {notion}", s["small"]))
 
-    # ── Footer ───────────────────────────────────────────────────────────────────
-    elems.append(Spacer(1, 20))
-    elems.append(HRFlowable(width=W, thickness=1, color=C["grey"], spaceAfter=4))
+    # ── Pie de página ─────────────────────────────────────────────────────────────
+    elems.append(Spacer(1, 24))
+    elems.append(HRFlowable(width=W, thickness=0.5, color=GREY_BRD, spaceAfter=6))
     elems.append(Paragraph(
-        f"Generado por Auditor Agéntico de Facturación · {datetime.now().strftime('%Y-%m-%d %H:%M')} · Sistema Hackathon",
+        f"Documento generado por el Sistema de Auditoría de Facturación · {fecha_hoy} {hora_hoy}",
         s["footer"]))
 
     doc.build(elems)
@@ -261,7 +335,7 @@ def generate_audit_pdf(audit_data: dict) -> bytes:
 # ── Envío por Mailjet ──────────────────────────────────────────────────────────
 
 def send_report_email(to_email: str, audit_data: dict) -> dict[str, Any]:
-    """Genera el PDF del dictamen y lo envía como adjunto por Mailjet."""
+    """Genera el PDF del informe y lo envía como adjunto por Mailjet."""
     from mailjet_rest import Client as MailjetClient
 
     api_key    = os.environ.get("MAILJET_API_KEY", "")
@@ -282,38 +356,40 @@ def send_report_email(to_email: str, audit_data: dict) -> dict[str, Any]:
     except Exception as exc:
         return {"success": False, "error": f"Error generando PDF: {exc}"}
 
-    subject = f"Dictamen de Auditoría — Factura {numero} — {dictamen}"
+    subject = f"Informe de Auditoría — Factura {numero} — {dictamen}"
     html_body = f"""
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-      <div style="background:#000;color:#F5E642;padding:20px;font-weight:900;font-size:20px;letter-spacing:2px;text-transform:uppercase">
-        Auditor Agéntico de Facturación
+    <div style="font-family:'Courier New',monospace;max-width:600px;margin:0 auto;background:#0F172A;color:#F3F4F6">
+      <div style="background:linear-gradient(to right, #3B82F6 0%, #06B6D4 100%);padding:24px;font-weight:600;font-size:18px;letter-spacing:1px;text-transform:uppercase;color:white">
+        Informe de Auditoría de Facturación
       </div>
-      <div style="border:3px solid #000;padding:20px">
-        <h2 style="margin-top:0">Dictamen: {dictamen}</h2>
-        <p>Adjunto encontrará el reporte completo de auditoría para la factura <strong>{numero}</strong>.</p>
-        <p>El PDF incluye:</p>
-        <ul>
+      <div style="border:1px solid #334155;padding:24px;background:#1E293B">
+        <h2 style="margin-top:0;color:#3B82F6;font-size:16px;text-transform:uppercase">Resolución: {dictamen}</h2>
+        <p style="color:#F3F4F6">Adjunto encontrará el informe completo de auditoría para la factura <strong>{numero}</strong>.</p>
+        <p style="color:#F3F4F6">El informe incluye:</p>
+        <ul style="color:#D1D5DB">
           <li>Datos de la factura y del taller</li>
-          <li>Resumen financiero (facturado / aprobado / ahorro)</li>
+          <li>Resumen financiero (facturado / aprobado / ahorro detectado)</li>
           <li>Detalle de cada ítem auditado con alertas</li>
-          <li>Borrador de rechazo al taller (si aplica)</li>
+          <li>Análisis de coherencia mecánica con el siniestro declarado</li>
+          <li>Informe formal de rechazo al taller (si aplica)</li>
         </ul>
-        <p style="color:#888;font-size:12px">Generado el {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+        <p style="color:#D1D5DB;font-size:12px;margin-top:20px">Generado el {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
       </div>
     </div>
     """
 
     mailjet = MailjetClient(auth=(api_key, secret_key), version="v3.1")
+    safe_numero = "".join(c for c in numero if c.isalnum() or c in ("-", "_"))
     data = {
         "Messages": [{
             "From":    {"Email": sender, "Name": "Auditor de Siniestros"},
             "To":      [{"Email": to_email}],
             "Subject": subject,
             "HTMLPart": html_body,
-            "TextPart": f"Dictamen: {dictamen}\nAdjunto el reporte PDF de auditoría para la factura {numero}.",
+            "TextPart": f"Resolución: {dictamen}\nAdjunto el informe PDF de auditoría para la factura {numero}.",
             "Attachments": [{
                 "ContentType":   "application/pdf",
-                "Filename":      f"dictamen_{numero.replace(' ', '_')}.pdf",
+                "Filename":      f"informe_{safe_numero}.pdf",
                 "Base64Content": pdf_b64,
             }],
         }]
@@ -322,7 +398,7 @@ def send_report_email(to_email: str, audit_data: dict) -> dict[str, Any]:
     try:
         resp = mailjet.send.create(data=data)
         if resp.status_code == 200:
-            return {"success": True, "message": f"Reporte enviado a {to_email}"}
+            return {"success": True, "message": f"Informe enviado a {to_email}"}
         return {"success": False, "error": f"Mailjet respondió con status {resp.status_code}: {resp.json()}"}
     except Exception as exc:
         return {"success": False, "error": str(exc)}

@@ -1,13 +1,15 @@
 import os
+import re
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
-load_dotenv() 
+load_dotenv()
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from agent import run_audit_agent
 from email_service import send_report_email
@@ -15,6 +17,7 @@ from email_service import send_report_email
 # ── Constantes ─────────────────────────────────────────────────────────────────
 ALLOWED_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"}
 MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_REPORT_LEN = 2000
 
 REQUIRED_ENV_VARS = [
     "OPENAI_API_KEY",
@@ -23,6 +26,24 @@ REQUIRED_ENV_VARS = [
     "NOTION_TOKEN",
     "NOTION_DATABASE_ID",
 ]
+
+# Validación de email y magic bytes de archivos
+_EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+
+_MAGIC_BYTES: dict[str, list[bytes]] = {
+    "image/jpeg": [b"\xff\xd8\xff"],
+    "image/jpg":  [b"\xff\xd8\xff"],
+    "image/png":  [b"\x89PNG"],
+    "image/webp": [b"RIFF"],
+    "application/pdf": [b"%PDF"],
+}
+
+
+def _validate_magic(data: bytes, content_type: str) -> bool:
+    signatures = _MAGIC_BYTES.get(content_type, [])
+    if not signatures:
+        return True
+    return any(data.startswith(sig) for sig in signatures)
 
 
 # ── Lifespan: validar env vars en arranque ─────────────────────────────────────
@@ -35,6 +56,18 @@ async def lifespan(app: FastAPI):
             "Copia .env.example a .env y completa los valores."
         )
     yield
+
+
+# ── Middleware de cabeceras de seguridad ───────────────────────────────────────
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        return response
 
 
 # ── App ────────────────────────────────────────────────────────────────────────
@@ -61,6 +94,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(SecurityHeadersMiddleware)
+
 
 # ── Rutas ──────────────────────────────────────────────────────────────────────
 
@@ -74,8 +109,14 @@ async def audit_invoice(
     file: UploadFile = File(..., description="Imagen (JPEG/PNG/WebP) o PDF de la factura"),
     sinister_report: str = Form(default="", description="Reporte de siniestralidad del ajustador"),
 ):
+    # Validar longitud del reporte
+    if len(sinister_report) > MAX_REPORT_LEN:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El reporte de siniestralidad no puede superar {MAX_REPORT_LEN} caracteres.",
+        )
 
-    # Validar tipo de contenido
+    # Validar tipo de contenido declarado
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,
@@ -96,6 +137,13 @@ async def audit_invoice(
 
     if len(contents) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="Archivo demasiado grande. Máximo permitido: 10 MB.")
+
+    # Validar magic bytes (el content_type declarado debe coincidir con el contenido real)
+    if not _validate_magic(contents, file.content_type):
+        raise HTTPException(
+            status_code=400,
+            detail="El contenido del archivo no corresponde al tipo declarado.",
+        )
 
     # Convertir PDF → imagen PNG (primera página)
     content_type = file.content_type
@@ -144,6 +192,10 @@ async def send_report(request: Request):
 
     if not to_email:
         raise HTTPException(status_code=400, detail="Campo 'email' requerido.")
+
+    if not _EMAIL_RE.match(to_email):
+        raise HTTPException(status_code=400, detail="Formato de email inválido.")
+
     if not audit_data:
         raise HTTPException(status_code=400, detail="Campo 'audit_data' requerido.")
 
