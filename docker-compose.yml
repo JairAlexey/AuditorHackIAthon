@@ -30,6 +30,7 @@ services:
     volumes:
       - ./frontend/src:/app/src          # hot-reload solo para src (evita re-instalar deps)
       - ./frontend/index.html:/app/index.html
+      - ./frontend/public:/app/public    # sirve PDFs de ejemplo y assets estáticos
     depends_on:
       backend:
         condition: service_healthy       # espera a que el backend responda antes de arrancar
