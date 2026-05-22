@@ -45,13 +45,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_extra_origins = [o for o in [os.environ.get("FRONTEND_URL", "")] if o]
+
+origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://iauditor.pages.dev",
+] + _extra_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        os.environ.get("FRONTEND_URL", ""),
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
