@@ -180,6 +180,17 @@ async def audit_invoice(
         ) from exc
 
 
+@app.get("/api/tarifario", tags=["Tarifario"])
+async def get_tarifario():
+    try:
+        from supabase import create_client
+        sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+        res = sb.table("tarifario").select("*").eq("activo", True).order("categoria").order("codigo").execute()
+        return JSONResponse(content={"success": True, "data": res.data})
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error consultando tarifario: {exc}") from exc
+
+
 @app.post("/api/send-report", tags=["Email"])
 async def send_report(request: Request):
     try:
